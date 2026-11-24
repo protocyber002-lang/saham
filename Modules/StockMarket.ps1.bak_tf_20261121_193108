@@ -1,0 +1,226 @@
+# StockMarket.ps1 - GUI Candlestick Chart (Interactive)
+Set-StrictMode -Version 2.0
+
+$Global:StockDataPath = Join-Path $PSScriptRoot '..\Data\stocks.json'
+
+function Save-StockData($stocks) {
+    try {
+        $json = $stocks | ConvertTo-JsonCompat
+        [System.IO.File]::WriteAllText($Global:StockDataPath, $json, [System.Text.Encoding]::UTF8)
+    } catch { }
+}
+
+function Load-StockData {
+    $defaultStocks = @(
+        @{ Ticker = "AAPL"; Name = "Apple Inc."; Price = 150.00; Trend = 0; TrendTimeLeft = 0; Target = 150.00; Delta = 0.00; History = @(150.00) }
+        @{ Ticker = "GOOG"; Name = "Google LLC"; Price = 2800.00; Trend = 0; TrendTimeLeft = 0; Target = 2800.00; Delta = 0.00; History = @(2800.00) }
+        @{ Ticker = "TSLA"; Name = "Tesla Inc."; Price = 800.00; Trend = 0; TrendTimeLeft = 0; Target = 800.00; Delta = 0.00; History = @(800.00) }
+        @{ Ticker = "AMZN"; Name = "Amazon.com"; Price = 3300.00; Trend = 0; TrendTimeLeft = 0; Target = 3300.00; Delta = 0.00; History = @(3300.00) }
+        @{ Ticker = "BTC";  Name = "Bitcoin"; Price = 45000.00; Trend = 0; TrendTimeLeft = 0; Target = 45000.00; Delta = 0.00; History = @(45000.00) }
+    )
+    if (-not (Test-Path $Global:StockDataPath)) { return $defaultStocks }
+    try {
+        $raw = [System.IO.File]::ReadAllText($Global:StockDataPath, [System.Text.Encoding]::UTF8)
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $defaultStocks }
+        $loaded = ConvertFrom-JsonCompat $raw
+        if ($null -eq $loaded) { return $defaultStocks }
+        $arr = @($loaded)
+        if ($arr.Count -eq 0) { return $defaultStocks }
+        $parsed = @()
+        foreach ($s in $arr) {
+            $hist = @()
+            if ($null -ne $s.History) { $hist = @($s.History) } else { $hist = @($s.Price) }
+            $parsed += @{
+                Ticker = [string]$s.Ticker; Name = [string]$s.Name; Price = [double]$s.Price
+                Trend = [int]$s.Trend; TrendTimeLeft = [int]$s.TrendTimeLeft
+                Target = [double]$s.Target; Delta = [double]$s.Delta; History = $hist
+            }
+        }
+        return $parsed
+    } catch { return $defaultStocks }
+}
+
+function Start-StockMonitor {
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms.DataVisualization")
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Drawing")
+
+    $Global:Stocks = Load-StockData
+    $Global:SelectedStock = $Global:Stocks[0] # Default ke AAPL
+    $Global:LastUpdate = [DateTime]::UtcNow
+
+    # 1. Setup Form
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "ClickTycoonIdle - Stock Market (Candlestick)"
+    $form.Size = New-Object System.Drawing.Size(1000, 650)
+    $form.StartPosition = "CenterScreen"
+    $form.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
+    $form.MaximizeBox = $false
+
+    # 2. Panel Tombol (Atas)
+    $panelTop = New-Object System.Windows.Forms.FlowLayoutPanel
+    $panelTop.Dock = [System.Windows.Forms.DockStyle]::Top
+    $panelTop.Height = 50
+    $panelTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+    $panelTop.Padding = New-Object System.Windows.Forms.Padding(10)
+    $form.Controls.Add($panelTop)
+
+    $buttons = @{}
+    foreach ($s in $Global:Stocks) {
+        $btn = New-Object System.Windows.Forms.Button
+        $btn.Text = $s.Ticker
+        $btn.Width = 80
+        $btn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $btn.FlatAppearance.BorderSize = 0
+        $btn.BackColor = [System.Drawing.Color]::FromArgb(50, 50, 50)
+        $btn.ForeColor = [System.Drawing.Color]::White
+        $btn.Tag = $s.Ticker
+        
+        # Event klik tombol
+        $btn.Add_Click({
+            $ticker = $this.Tag
+            foreach ($st in $Global:Stocks) {
+                if ($st.Ticker -eq $ticker) {
+                    $Global:SelectedStock = $st
+                    break
+                }
+            }
+            # Highlight tombol aktif
+            foreach ($b in $script:buttons.Values) { $b.BackColor = [System.Drawing.Color]::FromArgb(50, 50, 50) }
+            $this.BackColor = [System.Drawing.Color]::DodgerBlue
+            
+            # Update judul dan grafik
+            $script:chart.Titles[0].Text = "$($Global:SelectedStock.Ticker) - $($Global:SelectedStock.Name)"
+            Update-Chart
+        })
+        
+        $panelTop.Controls.Add($btn)
+        $buttons[$s.Ticker] = $btn
+    }
+    # Set tombol pertama aktif
+    $buttons[$Global:Stocks[0].Ticker].BackColor = [System.Drawing.Color]::DodgerBlue
+
+    # 3. Setup Chart
+    $chart = New-Object System.Windows.Forms.DataVisualization.Charting.Chart
+    $chart.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $chart.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $form.Controls.Add($chart)
+
+    $title = New-Object System.Windows.Forms.DataVisualization.Charting.Title
+    $title.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+    $title.ForeColor = [System.Drawing.Color]::White
+    $title.Text = "$($Global:SelectedStock.Ticker) - $($Global:SelectedStock.Name)"
+    $chart.Titles.Add($title)
+
+    $chartArea = New-Object System.Windows.Forms.DataVisualization.Charting.ChartArea
+    $chartArea.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $chartArea.AxisX.LabelStyle.ForeColor = [System.Drawing.Color]::DimGray
+    $chartArea.AxisY.LabelStyle.ForeColor = [System.Drawing.Color]::DimGray
+    $chartArea.AxisX.MajorGrid.LineColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
+    $chartArea.AxisY.MajorGrid.LineColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
+    $chartArea.AxisX.LabelStyle.Format = "HH:mm:ss"
+    $chartArea.AxisY.LabelStyle.Format = "{0:N2}"
+    $chartArea.AxisX.IsMarginVisible = $false
+    $chart.ChartAreas.Add($chartArea)
+
+    $series = New-Object System.Windows.Forms.DataVisualization.Charting.Series
+    $series.Name = "Price"
+    $series.ChartType = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]::Candlestick
+    $series["PointWidth"] = "0.6"
+    $series["PriceUpColor"] = "LimeGreen"
+    $series["PriceDownColor"] = "Crimson"
+    $series.Color = [System.Drawing.Color]::Gray
+    $chart.Series.Add($series)
+
+    # 4. Fungsi Render Candlestick
+    function Update-Chart {
+        $s = $Global:SelectedStock
+        $series.Points.Clear()
+
+        # Simulasi data OHLC (Open, High, Low, Close) dari History
+        if ($s.History.Count -gt 0) {
+            $now = [DateTime]::Now
+            $count = $s.History.Count
+            
+            for ($i = 0; $i -lt $count; $i++) {
+                $close = [double]$s.History[$i]
+                $open = if ($i -eq 0) { $close } else { [double]$s.History[$i - 1] }
+                
+                # Buat High/Low acak tipis untuk visual
+                $high = [Math]::Max($open, $close) + (Get-Random -Minimum 0 -Maximum 20) / 100.0
+                $low = [Math]::Min($open, $close) - (Get-Random -Minimum 0 -Maximum 20) / 100.0
+                
+                # Waktu X (berdasarkan sisa waktu)
+                $time = $now.AddSeconds(($i - $count) * 5)
+                
+                # AddXY(X, High, Low, Open, Close)
+                $series.Points.AddXY($time, $high, $low, $open, $close)
+            }
+        }
+
+        # Auto-scale Y Axis
+        if ($series.Points.Count -gt 0) {
+            $min = ($series.Points | ForEach-Object { $_.YValues[1] } | Measure-Object -Minimum).Minimum
+            $max = ($series.Points | ForEach-Object { $_.YValues[0] } | Measure-Object -Maximum).Maximum
+            $margin = ($max - $min) * 0.1
+            if ($margin -eq 0) { $margin = 1 }
+            $chartArea.AxisY.Minimum = $min - $margin
+            $chartArea.AxisY.Maximum = $max + $margin
+        }
+    }
+
+    # Render awal
+    Update-Chart
+
+    # 5. Timer Update (5 detik)
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 5000
+    $timer.Add_Tick({
+        $now = [DateTime]::UtcNow
+        $dt = ($now - $Global:LastUpdate).TotalSeconds
+
+        if ($dt -ge 5.0) {
+            $Global:LastUpdate = $now
+
+            # Simulasi pergerakan untuk SEMUA saham
+            foreach ($s in $Global:Stocks) {
+                $s.TrendTimeLeft -= 5
+                if ($s.TrendTimeLeft -le 0) {
+                    $A = Get-Random -Minimum 0 -Maximum 3
+                    $B = Get-Random -Minimum 5 -Maximum 21
+                    $s.Trend = $A
+                    $s.TrendTimeLeft = $B
+                    if ($A -eq 1) { $s.Target = $s.Price + ($B * 0.1) }
+                    elseif ($A -eq 2) { $s.Target = $s.Price - ($B * 0.1); if ($s.Target -lt 1.0) { $s.Target = 1.0 } }
+                    else { $s.Target = $s.Price }
+                }
+
+                if ($s.Trend -eq 1) {
+                    $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                    $s.Price += $change; $s.Delta = $change
+                } elseif ($s.Trend -eq 2) {
+                    $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                    $s.Price -= $change; $s.Delta = -$change
+                    if ($s.Price -lt 1.0) { $s.Price = 1.0 }
+                } else { $s.Delta = 0.0 }
+
+                $s.History += $s.Price
+                if ($s.History.Count -gt 30) {
+                    $s.History = $s.History[($s.History.Count - 30)..($s.History.Count - 1)]
+                }
+            }
+            Save-StockData $Global:Stocks
+            Update-Chart
+        }
+    })
+
+    # Simpan referensi script scope untuk event handler
+    $script:chart = $chart
+    $script:buttons = $buttons
+
+    $form.Add_FormClosed({ $timer.Stop() })
+    $timer.Start()
+    [void]$form.ShowDialog()
+    $timer.Stop()
+}

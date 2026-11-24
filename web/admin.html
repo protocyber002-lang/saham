@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ClickTycoonIdle</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { background-color: #1e1e1e; color: #fff; font-family: Consolas, monospace; padding: 20px; }
+        h1 { color: #00bfff; border-bottom: 2px solid #00bfff; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #444; text-align: left; }
+        th { background-color: #333; color: #0f0; }
+        tr:nth-child(even) { background-color: #2a2a2a; }
+        button { padding: 6px 12px; cursor: pointer; border: none; border-radius: 3px; font-weight: bold; }
+        .btn-accept { background-color: #4caf50; color: white; }
+        .btn-deny { background-color: #f44336; color: white; }
+        .pairing-code { color: yellow; font-size: 1.5em; font-weight: bold; }
+        @media (max-width: 600px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.8em; } }
+    </style>
+</head>
+<body>
+    <h1>Manajemen Perangkat (API)</h1>
+    <p>Kode Pairing Saat Ini: <span class="pairing-code" id="pairCode">-</span></p>
+    <table>
+        <thead><tr><th>Device ID</th><th>Nama</th><th>Status</th><th>Token</th><th>Aksi</th></tr></thead>
+        <tbody id="deviceTable"></tbody>
+    </table>
+    <script>
+        async function loadDevices() {
+            const res = await fetch('/api/admin/devices');
+            const data = await res.json();
+            const tbody = document.getElementById('deviceTable');
+            tbody.innerHTML = '';
+            if (Object.keys(data).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Belum ada perangkat terhubung.</td></tr>';
+                return;
+            }
+            for (const [id, dev] of Object.entries(data)) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${id}</td>
+                    <td>${dev.Name}</td>
+                    <td style="color:${dev.Status==='Allowed'?'#0f0':'#f00'}">${dev.Status}</td>
+                    <td style="font-size:0.8em">${dev.Token.substring(0,8)}...</td>
+                    <td>
+                        <button class="btn-accept" onclick="toggle('${id}','Allowed')">Izinkan</button>
+                        <button class="btn-deny" onclick="toggle('${id}','Denied')">Cabut</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+        async function toggle(id, status) {
+            await fetch('/api/admin/toggle', { method: 'POST', body: JSON.stringify({ id: id, status: status }) });
+            loadDevices();
+        }
+        async function loadPairingCode() {
+            const res = await fetch('/api/admin/pairing');
+            const data = await res.json();
+            document.getElementById('pairCode').innerText = data.code;
+        }
+        setInterval(loadDevices, 5000);
+        setInterval(loadPairingCode, 5000);
+        loadDevices();
+        loadPairingCode();
+    </script>
+</body>
+</html>

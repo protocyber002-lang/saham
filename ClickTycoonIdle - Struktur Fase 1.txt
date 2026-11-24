@@ -1,0 +1,14 @@
+ClickTycoonIdle/
+├── Start-Game.ps1
+├── Core/
+│   ├── Compat.ps1
+│   ├── Capability.ps1   <-- BARU
+│   ├── Engine.ps1
+│   └── SaveSystem.ps1
+├── Modules/
+│   └── MathChallenge.ps1  <-- BARU
+│   └── StockMarket.ps1  <-- BARU
+├── UI/
+│   ├── Render.ps1
+│   └── Input.ps1
+└── Data/   (dibuat otomatis)

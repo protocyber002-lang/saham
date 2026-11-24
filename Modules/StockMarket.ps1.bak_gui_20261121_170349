@@ -1,0 +1,178 @@
+# StockMarket.ps1 - Random Walk + ASCII Sparkline
+Set-StrictMode -Version 2.0
+
+$Global:StockDataPath = Join-Path $PSScriptRoot '..\Data\stocks.json'
+$Global:SparkChars = @("_", ".", "-", "=", "+", "*", "#", "%", "@")
+
+function Save-StockData($stocks) {
+    try {
+        $json = $stocks | ConvertTo-JsonCompat
+        [System.IO.File]::WriteAllText($Global:StockDataPath, $json, [System.Text.Encoding]::UTF8)
+    } catch { }
+}
+
+function Load-StockData {
+    $defaultStocks = @(
+        @{ Ticker = "AAPL"; Name = "Apple Inc."; Price = 150.00; Trend = 0; TrendTimeLeft = 0; Target = 150.00; Delta = 0.00; History = @(150.00) }
+        @{ Ticker = "GOOG"; Name = "Google LLC"; Price = 2800.00; Trend = 0; TrendTimeLeft = 0; Target = 2800.00; Delta = 0.00; History = @(2800.00) }
+        @{ Ticker = "TSLA"; Name = "Tesla Inc."; Price = 800.00; Trend = 0; TrendTimeLeft = 0; Target = 800.00; Delta = 0.00; History = @(800.00) }
+        @{ Ticker = "AMZN"; Name = "Amazon.com"; Price = 3300.00; Trend = 0; TrendTimeLeft = 0; Target = 3300.00; Delta = 0.00; History = @(3300.00) }
+        @{ Ticker = "BTC";  Name = "Bitcoin"; Price = 45000.00; Trend = 0; TrendTimeLeft = 0; Target = 45000.00; Delta = 0.00; History = @(45000.00) }
+    )
+
+    if (-not (Test-Path $Global:StockDataPath)) { return $defaultStocks }
+
+    try {
+        $raw = [System.IO.File]::ReadAllText($Global:StockDataPath, [System.Text.Encoding]::UTF8)
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $defaultStocks }
+        
+        $loaded = ConvertFrom-JsonCompat $raw
+        if ($null -eq $loaded) { return $defaultStocks }
+        
+        $arr = @($loaded)
+        if ($arr.Count -eq 0) { return $defaultStocks }
+
+        $parsed = @()
+        foreach ($s in $arr) {
+            $hist = @()
+            if ($null -ne $s.History) { $hist = @($s.History) }
+            else { $hist = @($s.Price) }
+
+            $parsed += @{
+                Ticker        = [string]$s.Ticker
+                Name          = [string]$s.Name
+                Price         = [double]$s.Price
+                Trend         = [int]$s.Trend
+                TrendTimeLeft = [int]$s.TrendTimeLeft
+                Target        = [double]$s.Target
+                Delta         = [double]$s.Delta
+                History       = $hist
+            }
+        }
+        return $parsed
+    } catch {
+        return $defaultStocks
+    }
+}
+
+function Draw-Sparkline($history) {
+    if (-not $history -or @($history).Count -eq 0) { return "" }
+
+    $h = @($history)
+    $min = ($h | Measure-Object -Minimum).Minimum
+    $max = ($h | Measure-Object -Maximum).Maximum
+    $range = $max - $min
+    $levels = $Global:SparkChars.Count
+
+    $sb = New-Object System.Text.StringBuilder
+
+    if ($range -le 0.0001) {
+        $flat = $Global:SparkChars[3]
+        foreach ($x in $h) { [void]$sb.Append($flat) }
+        return $sb.ToString()
+    }
+
+    foreach ($x in $h) {
+        $pct = ($x - $min) / $range
+        $idx = [int][Math]::Floor($pct * ($levels - 1))
+        if ($idx -lt 0) { $idx = 0 }
+        if ($idx -ge $levels) { $idx = $levels - 1 }
+        [void]$sb.Append($Global:SparkChars[$idx])
+    }
+    return $sb.ToString()
+}
+
+function Start-StockMonitor {
+    $stocks = Load-StockData
+    $lastUpdate = [DateTime]::UtcNow
+    $running = $true
+
+    try { Clear-Host } catch {}
+
+    try {
+        while ($running) {
+            if ([Console]::KeyAvailable) {
+                $key = [Console]::ReadKey($true)
+                if ($key.Key -eq 'Q' -or $key.Key -eq 'Escape') {
+                    $running = $false
+                    break
+                }
+            }
+
+            $now = [DateTime]::UtcNow
+            $dt = ($now - $lastUpdate).TotalSeconds
+
+            if ($dt -ge 5.0) {
+                $lastUpdate = $now
+
+                foreach ($s in $stocks) {
+                    $s.TrendTimeLeft -= 5
+
+                    if ($s.TrendTimeLeft -le 0) {
+                        $A = Get-Random -Minimum 0 -Maximum 3
+                        $B = Get-Random -Minimum 5 -Maximum 21
+
+                        $s.Trend = $A
+                        $s.TrendTimeLeft = $B
+
+                        if ($A -eq 1) { $s.Target = $s.Price + ($B * 0.1) }
+                        elseif ($A -eq 2) {
+                            $s.Target = $s.Price - ($B * 0.1)
+                            if ($s.Target -lt 1.0) { $s.Target = 1.0 }
+                        } else { $s.Target = $s.Price }
+                    }
+
+                    if ($s.Trend -eq 1) {
+                        $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                        $s.Price += $change
+                        $s.Delta = $change
+                    } elseif ($s.Trend -eq 2) {
+                        $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                        $s.Price -= $change
+                        $s.Delta = -$change
+                        if ($s.Price -lt 1.0) { $s.Price = 1.0 }
+                    } else {
+                        $s.Delta = 0.0
+                    }
+
+                    $s.History += $s.Price
+                    if ($s.History.Count -gt 20) {
+                        $s.History = $s.History[($s.History.Count - 20)..($s.History.Count - 1)]
+                    }
+                }
+                Save-StockData $stocks
+            }
+
+            try { [Console]::SetCursorPosition(0, 0) } catch {}
+
+            Write-Host "==========================================================================" -ForegroundColor DarkCyan
+            Write-Host "                          STOCK MARKET MONITOR                            " -ForegroundColor Cyan
+            Write-Host "                          [Q] Keluar                                      " -ForegroundColor DarkGray
+            Write-Host "==========================================================================" -ForegroundColor DarkCyan
+
+            foreach ($s in $stocks) {
+                $color = "Gray"; $statusStr = ""; $arrow = ""
+                if ($s.Trend -eq 1) {
+                    $color = "Green"; $statusStr = "UP   ($($s.TrendTimeLeft)s)"; $arrow = "^"
+                } elseif ($s.Trend -eq 2) {
+                    $color = "Red"; $statusStr = "DOWN ($($s.TrendTimeLeft)s)"; $arrow = "v"
+                } else {
+                    $color = "Yellow"; $statusStr = "FLAT ($($s.TrendTimeLeft)s)"; $arrow = "-"
+                }
+
+                $spark = Draw-Sparkline $s.History
+                
+                Write-Host ("[{0,-4}] {1,-14} | " -f $s.Ticker, $s.Name) -NoNewline
+                Write-Host ("{0} {1,-12} | " -f $arrow, $statusStr) -NoNewline -ForegroundColor $color
+                Write-Host (" {0}" -f $spark) -ForegroundColor $color
+            }
+
+            Write-Host "==========================================================================" -ForegroundColor DarkCyan
+            Write-Host "Update setiap 5 detik. Data tersimpan otomatis." -ForegroundColor DarkGray
+
+            Start-Sleep -Milliseconds 100
+        }
+    } finally {
+        Save-StockData $stocks
+    }
+}

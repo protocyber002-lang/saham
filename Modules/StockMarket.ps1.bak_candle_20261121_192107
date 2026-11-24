@@ -1,0 +1,189 @@
+# StockMarket.ps1 - GUI Line Chart (Percentage Change)
+Set-StrictMode -Version 2.0
+
+$Global:StockDataPath = Join-Path $PSScriptRoot '..\Data\stocks.json'
+
+function Save-StockData($stocks) {
+    try {
+        $json = $stocks | ConvertTo-JsonCompat
+        [System.IO.File]::WriteAllText($Global:StockDataPath, $json, [System.Text.Encoding]::UTF8)
+    } catch { }
+}
+
+function Load-StockData {
+    $defaultStocks = @(
+        @{ Ticker = "AAPL"; Name = "Apple Inc."; Price = 150.00; Trend = 0; TrendTimeLeft = 0; Target = 150.00; Delta = 0.00; History = @(150.00) }
+        @{ Ticker = "GOOG"; Name = "Google LLC"; Price = 2800.00; Trend = 0; TrendTimeLeft = 0; Target = 2800.00; Delta = 0.00; History = @(2800.00) }
+        @{ Ticker = "TSLA"; Name = "Tesla Inc."; Price = 800.00; Trend = 0; TrendTimeLeft = 0; Target = 800.00; Delta = 0.00; History = @(800.00) }
+        @{ Ticker = "AMZN"; Name = "Amazon.com"; Price = 3300.00; Trend = 0; TrendTimeLeft = 0; Target = 3300.00; Delta = 0.00; History = @(3300.00) }
+        @{ Ticker = "BTC";  Name = "Bitcoin"; Price = 45000.00; Trend = 0; TrendTimeLeft = 0; Target = 45000.00; Delta = 0.00; History = @(45000.00) }
+    )
+
+    if (-not (Test-Path $Global:StockDataPath)) { return $defaultStocks }
+
+    try {
+        $raw = [System.IO.File]::ReadAllText($Global:StockDataPath, [System.Text.Encoding]::UTF8)
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $defaultStocks }
+        $loaded = ConvertFrom-JsonCompat $raw
+        if ($null -eq $loaded) { return $defaultStocks }
+        $arr = @($loaded)
+        if ($arr.Count -eq 0) { return $defaultStocks }
+
+        $parsed = @()
+        foreach ($s in $arr) {
+            $hist = @()
+            if ($null -ne $s.History) { $hist = @($s.History) }
+            else { $hist = @($s.Price) }
+
+            $parsed += @{
+                Ticker        = [string]$s.Ticker
+                Name          = [string]$s.Name
+                Price         = [double]$s.Price
+                Trend         = [int]$s.Trend
+                TrendTimeLeft = [int]$s.TrendTimeLeft
+                Target        = [double]$s.Target
+                Delta         = [double]$s.Delta
+                History       = $hist
+            }
+        }
+        return $parsed
+    } catch {
+        return $defaultStocks
+    }
+}
+
+function Start-StockMonitor {
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms.DataVisualization")
+    [void][Reflection.Assembly]::LoadWithPartialName("System.Drawing")
+
+    # 1. Setup Form & Chart
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "ClickTycoonIdle - Stock Market (% Change)"
+    $form.Size = New-Object System.Drawing.Size(1000, 600)
+    $form.StartPosition = "CenterScreen"
+    $form.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
+    $form.MaximizeBox = $false
+
+    $chart = New-Object System.Windows.Forms.DataVisualization.Charting.Chart
+    $chart.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $chart.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $form.Controls.Add($chart)
+
+    $chartArea = New-Object System.Windows.Forms.DataVisualization.Charting.ChartArea
+    $chartArea.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $chartArea.AxisX.LabelStyle.ForeColor = [System.Drawing.Color]::DimGray
+    $chartArea.AxisY.LabelStyle.ForeColor = [System.Drawing.Color]::DimGray
+    $chartArea.AxisX.MajorGrid.LineColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
+    $chartArea.AxisY.MajorGrid.LineColor = [System.Drawing.Color]::FromArgb(40, 40, 40)
+    $chartArea.AxisX.LabelStyle.Format = "0"
+    $chartArea.AxisY.LabelStyle.Format = "{0:F2}%"
+    $chart.ChartAreas.Add($chartArea)
+
+    $legend = New-Object System.Windows.Forms.DataVisualization.Charting.Legend
+    $legend.ForeColor = [System.Drawing.Color]::LightGray
+    $legend.BackColor = [System.Drawing.Color]::Transparent
+    $legend.Docking = [System.Windows.Forms.DataVisualization.Charting.Docking]::Top
+    $chart.Legends.Add($legend)
+
+    # 2. Siapkan Data & Series Map (Pindahkan ke atas sebelum dipanggil)
+    $stocks = Load-StockData
+    $lastUpdate = [DateTime]::UtcNow
+    $seriesMap = @{}
+    $colors = @("DodgerBlue", "Orange", "Magenta", "Cyan", "Yellow")
+    $i = 0
+
+    foreach ($s in $stocks) {
+        $series = New-Object System.Windows.Forms.DataVisualization.Charting.Series
+        $series.Name = $s.Ticker
+        $series.ChartType = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]::Line
+        $series.BorderWidth = 2
+        $series.Color = [System.Drawing.Color]::FromName($colors[$i % $colors.Count])
+        $chart.Series.Add($series)
+        $seriesMap[$s.Ticker] = $series
+        $i++
+    }
+
+    # 3. Pindahkan ke Global Scope agar bisa diakses oleh Timer & Function
+    $Global:ChartStocks = $stocks
+    $Global:ChartSeriesMap = $seriesMap
+    $Global:ChartLastUpdate = $lastUpdate
+
+    # 4. Fungsi Update-Chart
+    function Update-Chart {
+        foreach ($s in $Global:ChartStocks) {
+            $series = $Global:ChartSeriesMap[$s.Ticker]
+            $series.Points.Clear()
+
+            if ($s.History.Count -gt 0) {
+                # Baseline: harga pertama di history
+                $basePrice = [double]$s.History[0]
+                if ($basePrice -eq 0) { $basePrice = 1.0 }
+
+                $x = 0
+                foreach ($h in $s.History) {
+                    $pctChange = (($h - $basePrice) / $basePrice) * 100.0
+                    $series.Points.AddXY($x, $pctChange)
+                    $x++
+                }
+            }
+        }
+    }
+
+    # Render awal
+    Update-Chart
+
+    # 5. Timer
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 5000 
+    $timer.Add_Tick({
+        $now = [DateTime]::UtcNow
+        $dt = ($now - $Global:ChartLastUpdate).TotalSeconds
+
+        if ($dt -ge 5.0) {
+            $Global:ChartLastUpdate = $now
+
+            foreach ($s in $Global:ChartStocks) {
+                $s.TrendTimeLeft -= 5
+                if ($s.TrendTimeLeft -le 0) {
+                    $A = Get-Random -Minimum 0 -Maximum 3
+                    $B = Get-Random -Minimum 5 -Maximum 21
+                    $s.Trend = $A
+                    $s.TrendTimeLeft = $B
+                    if ($A -eq 1) { $s.Target = $s.Price + ($B * 0.1) }
+                    elseif ($A -eq 2) {
+                        $s.Target = $s.Price - ($B * 0.1)
+                        if ($s.Target -lt 1.0) { $s.Target = 1.0 }
+                    } else { $s.Target = $s.Price }
+                }
+
+                if ($s.Trend -eq 1) {
+                    $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                    $s.Price += $change
+                    $s.Delta = $change
+                } elseif ($s.Trend -eq 2) {
+                    $change = (Get-Random -Minimum 10 -Maximum 50) / 100.0
+                    $s.Price -= $change
+                    $s.Delta = -$change
+                    if ($s.Price -lt 1.0) { $s.Price = 1.0 }
+                } else {
+                    $s.Delta = 0.0
+                }
+
+                $s.History += $s.Price
+                if ($s.History.Count -gt 20) {
+                    $s.History = $s.History[($s.History.Count - 20)..($s.History.Count - 1)]
+                }
+            }
+            Save-StockData $Global:ChartStocks
+            Update-Chart
+        }
+    })
+
+    $form.Add_FormClosed({ $timer.Stop() })
+
+    $timer.Start()
+    [void]$form.ShowDialog()
+    $timer.Stop()
+}
