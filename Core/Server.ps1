@@ -324,7 +324,7 @@ while ($listener.IsListening) {
                         }
                         
                         $queue += @{ Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
-                        $queue | ConvertTo-Json -Depth 5 | Set-Content $queuePath -Encoding UTF8
+                        ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
                         
                         Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2}" -f $profName, $qty, $ticker) -ForegroundColor Green
                         $respJson = '{"status":"ok","message":"Perintah beli dikirim"}'
