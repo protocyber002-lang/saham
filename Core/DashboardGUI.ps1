@@ -952,7 +952,7 @@ function Update-Chart {
                 if ($dt -ge $cutoff) {
                     if ($price -lt $minPrice) { $minPrice = $price }
                     if ($price -gt $maxPrice) { $maxPrice = $price }
-                    $chart.Series[0].Points.AddXY($dt, $price)
+                    [void]$chart.Series[0].Points.AddXY($dt, $price)
                 }
                 $idx++
             } catch {}
@@ -1013,7 +1013,7 @@ function Update-Chart {
         $title.Text = "Grafik $Global:SelectedTicker ($($Global:CurrentTimeframe) Mnt)"
         $title.ForeColor = $ColorText
         $title.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
-        $chart.Titles.Add($title)
+        [void]$chart.Titles.Add($title)
     }
 }
 
