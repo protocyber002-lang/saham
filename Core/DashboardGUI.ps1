@@ -451,6 +451,8 @@ foreach ($b in @($btn1M, $btn5M, $btn15M, $btn12H, $btn1D)) { $b.BackColor = [Sy
 $panelBottom = New-Object System.Windows.Forms.Panel
 $panelBottom.Dock = [System.Windows.Forms.DockStyle]::Fill
 $panelBottom.BackColor = $ColorPanel
+$panelBottom.Width = 1180
+$panelBottom.Height = 600
 $mainLayout.Controls.Add($panelBottom, 0, 2)
 
 $chart = New-Object System.Windows.Forms.DataVisualization.Charting.Chart
@@ -572,6 +574,8 @@ $tabControl.TabPages.Add($tabWork)
 $splitWork = New-Object System.Windows.Forms.SplitContainer
 $splitWork.Dock = [System.Windows.Forms.DockStyle]::Fill
 $splitWork.Orientation = [System.Windows.Forms.Orientation]::Vertical
+$splitWork.Width = 1180
+$splitWork.Height = 600
 $splitWork.SplitterDistance = 200
 $splitWork.IsSplitterFixed = $true
 $splitWork.FixedPanel = [System.Windows.Forms.FixedPanel]::Panel1
