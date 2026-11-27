@@ -1,6 +1,7 @@
 # Log & antrian runtime
 Data/market.log
 Data/queue.json
+Data/receipts.json
 
 # File lock & backup otomatis
 *.lock
@@ -17,4 +18,8 @@ Data/pairing.txt
 
 # Output sementara
 tree_output.txt
-Data/receipts.json
+
+# tambahan
+Data/profiles/*.json
+Data/stocks.json
+Data/save.json
