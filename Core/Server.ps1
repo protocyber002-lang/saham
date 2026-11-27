@@ -37,6 +37,7 @@ if (-not (Test-Path $queuePath)) { "[]" | Set-Content $queuePath -Encoding UTF8 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host " SERVER BERJALAN DI http://+:$port/" -ForegroundColor Cyan
 Write-Host " PAIRING CODE: $Global:PairingCode" -ForegroundColor Yellow
+Write-Host " Konfirmasi beli (/api/buy_status + receipts.json) AKTIF" -ForegroundColor Cyan
 Write-Host " Admin: http://localhost:$port/admin" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
