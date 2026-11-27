@@ -35,6 +35,8 @@ $Global:RootPath = Split-Path -Parent $PSScriptRoot
 $Global:ProfilesDir = Join-Path $Global:RootPath "Data\profiles"
 $Global:StocksPath  = Join-Path $Global:RootPath "Data\stocks.json"
 $Global:QueuePath   = Join-Path $Global:RootPath "Data\queue.json"
+$Global:ProcessedOrderIds = New-Object System.Collections.Generic.List[string]
+$Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
 $Global:ProfilePath = ""
 $Global:ActiveProfileName = ""
@@ -1045,6 +1047,22 @@ function Do-Buy([int]$qty, [string]$tickerOverride = "") {
     return $false
 }
 
+function Get-OrderId($o) {
+    if ($o.PSObject.Properties.Name -contains 'Id' -and $o.Id) { return [string]$o.Id }
+    return ([string]$o.Ticker) + "|" + [string]$o.Qty + "|" + [string]$o.Time
+}
+
+function Write-QueueSafe($orders) {
+    for ($i = 0; $i -lt 3; $i++) {
+        try {
+            if ($orders.Count -eq 0) { "[]" | Set-Content $Global:QueuePath -Encoding UTF8 }
+            else { ConvertTo-Json -InputObject @($orders) -Depth 5 -Compress | Set-Content $Global:QueuePath -Encoding UTF8 }
+            return $true
+        } catch { Start-Sleep -Milliseconds 50 }
+    }
+    return $false
+}
+
 function Process-WebQueue {
     if ($Global:ActiveProfileName -eq "" -or $null -eq $Global:GameState) { return }
     try {
@@ -1059,28 +1077,50 @@ function Process-WebQueue {
         $orders = @($script:collected)
         if ($orders.Count -eq 0) { return }
 
-        $mine = @($orders | Where-Object { $_.Action -eq "BUY" -and $_.Profile -ieq $Global:ActiveProfileName })
+        $mine = @()
+        foreach ($o in $orders) {
+            if ($o.Action -ne "BUY") { continue }
+            $oid = Get-OrderId $o
+            if ($Global:ProcessedOrderIds -contains $oid) { continue }
+            if ($o.Profile -ieq $Global:ActiveProfileName) { $mine += $o }
+            elseif (-not ($Global:QueueSeenIds -contains $oid)) {
+                $Global:QueueSeenIds.Add($oid)
+                Write-Host ("[WEB BELI] Order untuk profil '{0}' menunggu (GUI ini: '{1}')" -f $o.Profile, $Global:ActiveProfileName) -ForegroundColor DarkGray
+            }
+        }
         if ($mine.Count -eq 0) { return }
 
         $stocks = Load-StocksData
-        $keep = New-Object System.Collections.Generic.List[object]
-        foreach ($o in $orders) {
-            $isMine = ($o.Action -eq "BUY" -and $o.Profile -ieq $Global:ActiveProfileName)
-            if (-not $isMine) { $keep.Add($o); continue }
+        if ($stocks.Count -eq 0) { return }
+
+        foreach ($o in $mine) {
+            $oid = Get-OrderId $o
             $qty = 0
             try { $qty = [int]$o.Qty } catch { $qty = 0 }
             $stock = $stocks | Where-Object { $_.Ticker -eq [string]$o.Ticker } | Select-Object -First 1
-            if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) { continue }
+            if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) {
+                $Global:ProcessedOrderIds.Add($oid)
+                Write-Host "[WEB BELI] Order dibatalkan (ticker/qty tidak valid)" -ForegroundColor Yellow
+                continue
+            }
             $cost = $stock.Price * $qty
             if ($Global:GameState.Player.Money -ge $cost) {
-                Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $qty, $o.Ticker) -ForegroundColor Green
-                Do-Buy $qty $o.Ticker | Out-Null
-            } else {
-                $keep.Add($o)
+                if (Do-Buy $qty $o.Ticker) {
+                    $Global:ProcessedOrderIds.Add($oid)
+                    Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $qty, $o.Ticker) -ForegroundColor Green
+                }
+            } elseif (-not ($Global:QueueSeenIds -contains $oid)) {
+                $Global:QueueSeenIds.Add($oid)
+                Write-Host ("[WEB BELI] Uang belum cukup untuk {0} x{1}. Order ditahan." -f $o.Ticker, $qty) -ForegroundColor Yellow
             }
         }
-        if ($keep.Count -eq 0) { "[]" | Set-Content $Global:QueuePath -Encoding UTF8 }
-        else { ConvertTo-Json -InputObject @($keep) -Depth 5 -Compress | Set-Content $Global:QueuePath -Encoding UTF8 }
+
+        $remaining = @($orders | Where-Object { -not ($Global:ProcessedOrderIds -contains (Get-OrderId $_)) })
+        if ($remaining.Count -lt $orders.Count) { Write-QueueSafe $remaining | Out-Null }
+        if ($remaining.Count -eq 0 -and $Global:ProcessedOrderIds.Count -gt 0) {
+            $Global:ProcessedOrderIds.Clear()
+            $Global:QueueSeenIds.Clear()
+        }
     } catch {}
 }
 
