@@ -20,7 +20,7 @@ public class SleepPreventer {
 "@
 }
 [SleepPreventer]::PreventSleep()
-Write-Host "[DashboardGUI] Versi baru aktif: konfirmasi beli web (Add-Receipt + receipts.json)" -ForegroundColor Cyan
+Write-Host "[DashboardGUI] Versi antrian v3: eksekusi di luar kunci + kuitansi utk semua hasil (Executed/Held/Failed)" -ForegroundColor Cyan
 
 # --- KONFIGURASI WARNA TEMA ---
 $ColorBg       = [System.Drawing.Color]::FromArgb(24, 24, 28)
@@ -145,6 +145,7 @@ $btnLogin.Add_Click({
     if ($listBoxProfiles.SelectedIndex -ge 0) {
         $Global:ActiveProfileName = $listBoxProfiles.SelectedItem.ToString()
         $Global:ProfilePath = Join-Path $Global:ProfilesDir ($Global:ActiveProfileName + ".json")
+        Write-Host ("[WEB BELI] Mulai memantau antrian Data\queue.json untuk profil '{0}'" -f $Global:ActiveProfileName) -ForegroundColor Cyan
         $formLogin.Close()
     } else {
         [System.Windows.Forms.MessageBox]::Show("Silakan pilih profil terlebih dahulu!")
@@ -1110,6 +1111,7 @@ function Process-WebQueue {
     if ($Global:ActiveProfileName -eq "" -or $null -eq $Global:GameState) { return }
     $toExecute = @()
     $lockFs = Enter-QueueLock
+    if ($null -eq $lockFs) { Write-Host "[WEB BELI][WARN] Kunci antrian tidak tersedia (tunggu 3 detik habis) - tick ini dilewati" -ForegroundColor Yellow; return }
     try {
         if (-not (Test-Path $Global:QueuePath)) { return }
         $fs = [System.IO.File]::Open($Global:QueuePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
@@ -1118,7 +1120,8 @@ function Process-WebQueue {
         $reader.Close(); $fs.Close()
         if ([string]::IsNullOrWhiteSpace($raw)) { return }
         $script:collected = @()
-        Collect-Orders ($raw -replace "^\uFEFF", "" | ConvertFrom-Json)
+        try { Collect-Orders ($raw -replace "^\uFEFF", "" | ConvertFrom-Json) }
+        catch { Write-Host ("[WEB BELI][WARN] Antrian tidak bisa dibaca (JSON parsial?): " + $_.Exception.Message) -ForegroundColor Yellow; return }
         $orders = @($script:collected)
         if ($orders.Count -eq 0) { return }
 
@@ -1173,8 +1176,10 @@ function Process-WebQueue {
         if (Do-Buy $x.qty $o.Ticker) {
             $Global:ProcessedOrderIds.Add($oid)
             Add-Receipt $oid "Executed" "Beli tercatat di dashboard"
-            Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $x.qty, $o.Ticker) -ForegroundColor Green
+            Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2} (order {3})" -f $Global:ActiveProfileName, $x.qty, $o.Ticker, $oid.Substring(0, 8)) -ForegroundColor Green
         } else {
+            Add-Receipt $oid "Held" "GUI menunda eksekusi (harga/uang berubah) - order tetap ditahan"
+            Write-Host ("[WEB BELI][WARN] Eksekusi tertunda utk {0} x{1} - order dikembalikan ke antrian" -f $o.Ticker, $x.qty) -ForegroundColor Yellow
             $lockFs2 = Enter-QueueLock
             try {
                 $q = @()
