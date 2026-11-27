@@ -64,6 +64,17 @@ function Test-AdminKey($req) {
     return ($null -ne $key -and $key.Length -gt 0 -and $key -ceq $Global:AdminKey)
 }
 
+function Get-DeviceProfile {
+    param($Devs, [string]$Token)
+    foreach ($d in $Devs.PSObject.Properties) {
+        if ($d.Value.Token -eq $Token) {
+            if ($d.Value.PSObject.Properties.Name -contains "Profile") { return [string]$d.Value.Profile }
+            return ""
+        }
+    }
+    return ""
+}
+
 function Read-FileSafe {
     param([string]$Path, [int]$Retries = 3, [int]$DelayMs = 50)
     for ($i = 0; $i -lt $Retries; $i++) {
@@ -75,6 +86,7 @@ function Read-FileSafe {
 }
 
 $Global:PairFails = @{}
+$Global:AdminFails = @{}
 
 while ($listener.IsListening) {
     try {
@@ -110,11 +122,30 @@ while ($listener.IsListening) {
         # --- ADMIN API (dilindungi header X-Admin-Key) ---
         elseif ($path -eq "/api/admin/auth" -and $req.HttpMethod -eq "POST") {
             $data = $body | ConvertFrom-Json
-            if ($data.key -ceq $Global:AdminKey) {
-                $respJson = '{"status":"ok"}'
-            } else {
-                $respJson = '{"status":"error","message":"Kunci admin salah"}'
-                $res.StatusCode = 401
+            $ipA = $req.RemoteEndPoint.Address.ToString()
+            $nowA = [DateTime]::UtcNow
+            if ($Global:AdminFails.ContainsKey($ipA)) {
+                $fA = $Global:AdminFails[$ipA]
+                if ($fA.Count -ge 10 -and ($nowA - $fA.Last).TotalSeconds -lt 300) {
+                    $respJson = '{"status":"error","message":"Terlalu banyak percobaan. Coba lagi dalam beberapa menit."}'
+                    $res.StatusCode = 429
+                }
+            }
+            if ($res.StatusCode -eq 200) {
+                if ($data.key -ceq $Global:AdminKey) {
+                    $Global:AdminFails.Remove($ipA)
+                    $respJson = '{"status":"ok"}'
+                } else {
+                    if ($Global:AdminFails.ContainsKey($ipA)) {
+                        $fA = $Global:AdminFails[$ipA]
+                        if (($nowA - $fA.Last).TotalSeconds -ge 300) { $Global:AdminFails[$ipA] = @{ Count = 1; Last = $nowA } }
+                        else { $Global:AdminFails[$ipA] = @{ Count = $fA.Count + 1; Last = $nowA } }
+                    } else {
+                        $Global:AdminFails[$ipA] = @{ Count = 1; Last = $nowA }
+                    }
+                    $respJson = '{"status":"error","message":"Kunci admin salah"}'
+                    $res.StatusCode = 401
+                }
             }
         }
         elseif ($path.StartsWith("/api/admin")) {
@@ -251,7 +282,9 @@ while ($listener.IsListening) {
                 }
             }
             elseif ($path -eq "/api/history") {
-                if ($isValid) {
+                if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                elseif ([string]::IsNullOrWhiteSpace((Get-DeviceProfile $devs $auth.Substring(7)))) { $respJson = '{"status":"error","message":"Login profil dulu"}'; $res.StatusCode = 403 }
+                else {
                     $ticker = $req.QueryString["ticker"]
                     if (-not $ticker) { $ticker = "AAPL" }
                     
@@ -269,9 +302,6 @@ while ($listener.IsListening) {
                         }
                     }
                     $respJson = @{ ticker = $ticker; history = $histData } | ConvertTo-Json -Depth 5 -Compress
-                } else {
-                    $respJson = '{"status":"error","message":"Unauthorized"}'
-                    $res.StatusCode = 401
                 }
             }
             elseif ($path -eq "/api/login_profile" -and $req.HttpMethod -eq "POST") {
@@ -310,12 +340,19 @@ while ($listener.IsListening) {
                 $respJson = '{"status":"ok","message":"Logout berhasil"}'
             }
             elseif ($path -eq "/api/stocks") {
-                if ($isValid) { $raw = Read-FileSafe $stocksPath; if ($raw) { $respJson = $raw } else { $respJson = '[]' } }
-                else { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                elseif ([string]::IsNullOrWhiteSpace((Get-DeviceProfile $devs $auth.Substring(7)))) { $respJson = '{"status":"error","message":"Login profil dulu"}'; $res.StatusCode = 403 }
+                else { $raw = Read-FileSafe $stocksPath; if ($raw) { $respJson = $raw } else { $respJson = '[]' } }
             }
             elseif ($path -eq "/api/buy" -and $req.HttpMethod -eq "POST") {
                 if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
                 else {
+                    $profName = Get-DeviceProfile $devs $auth.Substring(7)
+                    if ([string]::IsNullOrWhiteSpace($profName)) {
+                        $respJson = '{"status":"error","message":"Login profil dulu di web sebelum beli"}'
+                        $res.StatusCode = 403
+                    }
+                    else {
                     $data = $body | ConvertFrom-Json
                     $ticker = [string]$data.ticker
                     try { $qty = [int]$data.qty } catch { $qty = 0 }
@@ -332,10 +369,6 @@ while ($listener.IsListening) {
                                 if (-not [string]::IsNullOrWhiteSpace($rawQ)) { $queue = @($rawQ | ConvertFrom-Json) }
                             }
                             
-                            $profName = ""
-                            foreach ($d in $devs.PSObject.Properties) {
-                                if ($d.Value.Token -eq $auth.Substring(7)) { if ($d.Value.PSObject.Properties.Name -contains "Profile") { $profName = $d.Value.Profile }; break }
-                            }
                             
                             $orderId = [Guid]::NewGuid().ToString("N")
                             $queue += @{ Id = $orderId; Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
@@ -345,10 +378,12 @@ while ($listener.IsListening) {
                             $respJson = @{ status = "ok"; message = "Perintah beli dikirim"; orderId = $orderId } | ConvertTo-Json -Compress
                         } finally { Exit-QueueLock $lockFs }
                     }
+                    }
                 }
             }
             elseif ($path -eq "/api/buy_status") {
                 if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                elseif ([string]::IsNullOrWhiteSpace((Get-DeviceProfile $devs $auth.Substring(7)))) { $respJson = '{"status":"error","message":"Login profil dulu"}'; $res.StatusCode = 403 }
                 else {
                     $orderId = $req.QueryString["orderId"]
                     $respJson = '{"status":"pending"}'

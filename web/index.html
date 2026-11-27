@@ -69,8 +69,8 @@
         }
 
         function checkAuth() {
-            const token = localStorage.getItem('token');
-            const profile = localStorage.getItem('profile');
+            const token = localStorage.getItem('ct_token');
+            const profile = localStorage.getItem('ct_profile');
             
             if (!token) {
                 document.getElementById('loginScreen').classList.add('flex');
@@ -101,7 +101,7 @@
                 });
                 const data = await res.json();
                 if (data.status === 'ok') {
-                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('ct_token', data.token);
                     checkAuth();
                 } else { alert('Kode Pairing Salah!'); }
             } catch (e) { alert('Gagal terhubung.'); }
@@ -110,7 +110,7 @@
         async function doLoginProfile() {
             const prof = document.getElementById('profName').value.trim();
             if (!prof) { alert('Nama profil tidak boleh kosong'); return; }
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('ct_token');
             try {
                 const res = await fetch(API_BASE + 'login_profile', {
                     method: 'POST',
@@ -119,20 +119,21 @@
                 });
                 const data = await res.json();
                 if (data.status === 'ok') {
-                    localStorage.setItem('profile', data.profile);
+                    localStorage.setItem('ct_profile', data.profile);
+                    localStorage.setItem('ct_logged_in', 'true');
                     checkAuth();
                 } else { alert('Profil tidak ditemukan!'); }
             } catch (e) { alert('Gagal login profil.'); }
         }
 
         async function loadStocks() {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('ct_token');
             if (!token) return;
             try {
                 const res = await fetch(API_BASE + 'stocks', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
-                if (res.status === 401) { localStorage.removeItem('token'); checkAuth(); return; }
+                if (res.status === 401 || res.status === 403) { localStorage.removeItem('ct_token'); localStorage.removeItem('ct_profile'); localStorage.removeItem('ct_logged_in'); checkAuth(); return; }
                 const stocks = await res.json();
                 const container = document.getElementById('stockList');
                 container.innerHTML = '';
@@ -159,7 +160,7 @@
 
         function pollBuyStatus(orderId) {
             return new Promise(resolve => {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('ct_token');
                 let tries = 0;
                 const t = setInterval(async () => {
                     tries++;
@@ -176,8 +177,8 @@
         }
 
         async function buy(ticker, qty) {
-            const token = localStorage.getItem('token');
-            if (!token) return;
+            const token = localStorage.getItem('ct_token');
+            if (!token) { alert('Login dulu sebelum beli.'); return; }
             try {
                 const res = await fetch(API_BASE + 'buy', {
                     method: 'POST',
@@ -199,7 +200,7 @@
         }
 
         async function loadChart(ticker, name) {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('ct_token');
             document.getElementById('chartContainer').style.display = 'block';
             document.getElementById('chartTitle').innerText = ticker + ' - ' + name;
             try {
