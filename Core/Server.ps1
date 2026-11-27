@@ -1,4 +1,19 @@
 # Server.ps1 - API Gateway (Port 9000)
+function Write-Log {
+    param([string]$Tag, [string]$Message, [string]$Level = "INFO", [string]$Color = "")
+    $ts = [DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss")
+    $color = $Color
+    if (-not $color) {
+        $color = "Gray"
+        if ($Level -eq "WARN") { $color = "Yellow" }
+        elseif ($Level -eq "ERROR") { $color = "Red" }
+        elseif ($Level -eq "OK") { $color = "Green" }
+    }
+    $prefix = "[{0}] [{1}]" -f $ts, $Tag
+    if ($Level -ne "INFO") { $prefix = "$prefix[$Level]" }
+    Write-Host ($prefix + " " + $Message) -ForegroundColor $color
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $port = 9000
 $listener = $null
@@ -7,7 +22,7 @@ try {
     $listener.Prefixes.Add("http://+:$port/")
     $listener.Start()
 } catch {
-    Write-Host "[ERROR] Gagal membuka port 9000. Pastikan tidak ada aplikasi lain yang memakainya." -ForegroundColor Red
+    Write-Log -Tag "SERVER" -Level "ERROR" -Message "Gagal membuka port 9000. Pastikan tidak ada aplikasi lain yang memakainya."
     return
 }
 
@@ -38,17 +53,17 @@ if (Test-Path $adminKeyPath) { $Global:AdminKey = (Get-Content $adminKeyPath -Ra
 if ([string]::IsNullOrWhiteSpace($Global:AdminKey)) {
     $Global:AdminKey = [Guid]::NewGuid().ToString("N")
     [System.IO.File]::WriteAllText($adminKeyPath, $Global:AdminKey)
-    Write-Host " ADMIN KEY BARU (simpan baik-baik, ada juga di Data\admin_key.txt): $Global:AdminKey" -ForegroundColor Magenta
+    Write-Log -Tag "ADMIN" -Color Magenta -Message "ADMIN KEY BARU (simpan baik-baik, ada juga di Data\admin_key.txt): $Global:AdminKey"
 }
 
 if (-not (Test-Path $devicesPath)) { "{}" | Set-Content $devicesPath -Encoding UTF8 }
 if (-not (Test-Path $queuePath)) { "[]" | Set-Content $queuePath -Encoding UTF8 }
 
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host " SERVER BERJALAN DI http://+:$port/" -ForegroundColor Cyan
-Write-Host " PAIRING CODE: $Global:PairingCode" -ForegroundColor Yellow
-Write-Host " Konfirmasi beli (/api/buy_status + receipts.json) AKTIF" -ForegroundColor Cyan
-Write-Host " Admin: http://localhost:$port/admin" -ForegroundColor Cyan
+Write-Log -Tag "SERVER" -Color Cyan -Message "Berjalan di http://+:$port/"
+Write-Log -Tag "PAIRING" -Color Yellow -Message "Kode pairing: $Global:PairingCode"
+Write-Log -Tag "SERVER" -Color Cyan -Message "Konfirmasi beli (/api/buy_status + receipts.json) AKTIF"
+Write-Log -Tag "SERVER" -Color Cyan -Message "Admin: http://localhost:$port/admin"
 Write-Host "=========================================" -ForegroundColor Cyan
 
 function Get-Devices { 
@@ -374,7 +389,7 @@ while ($listener.IsListening) {
                             $queue += @{ Id = $orderId; Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
                             ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
                             
-                            Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2} (order {3})" -f $profName, $qty, $ticker, $orderId.Substring(0, 8)) -ForegroundColor Green
+                            Write-Log -Tag "BELI" -Level "OK" -Message ("Profil '{0}' membeli {1} lembar {2} (order {3})" -f $profName, $qty, $ticker, $orderId.Substring(0, 8))
                             $respJson = @{ status = "ok"; message = "Perintah beli dikirim"; orderId = $orderId } | ConvertTo-Json -Compress
                         } finally { Exit-QueueLock $lockFs }
                     }
@@ -415,13 +430,13 @@ while ($listener.IsListening) {
             $res.Close()
         } catch {
             if ($_.Exception.Message -notmatch "network name is no longer available") {
-                Write-Host ("[WARNING] Gagal kirim respon: " + $_.Exception.Message) -ForegroundColor Yellow
+                Write-Log -Tag "RESPON" -Level "WARN" -Message ("Gagal kirim respon: " + $_.Exception.Message)
             }
         } finally {
             try { $res.OutputStream.Close() } catch {}
             try { $res.Close() } catch {}
         }
     } catch {
-        Write-Host ("[SERVER ERROR] " + $_.Exception.Message) -ForegroundColor Red
+        Write-Log -Tag "SERVER" -Level "ERROR" -Message ("Exception saat menangani request " + $req.HttpMethod + " " + $req.Url.LocalPath + ": " + $_.Exception.Message)
     }
 }
