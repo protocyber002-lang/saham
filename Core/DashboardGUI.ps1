@@ -34,6 +34,7 @@ $ColorGrid     = [System.Drawing.Color]::FromArgb(45, 45, 55)
 $Global:RootPath = Split-Path -Parent $PSScriptRoot
 $Global:ProfilesDir = Join-Path $Global:RootPath "Data\profiles"
 $Global:StocksPath  = Join-Path $Global:RootPath "Data\stocks.json"
+$Global:QueuePath   = Join-Path $Global:RootPath "Data\queue.json"
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
 $Global:ProfilePath = ""
 $Global:ActiveProfileName = ""
@@ -999,11 +1000,12 @@ function Update-Chart {
     }
 }
 
-function Do-Buy($qty) {
-    if ($Global:SelectedTicker -eq "") { return }
+function Do-Buy([int]$qty, [string]$tickerOverride = "") {
+    $target = if ($tickerOverride -ne "") { $tickerOverride } else { $Global:SelectedTicker }
+    if ($target -eq "") { return $false }
     $stocks = Load-StocksData
-    $stock = $stocks | Where-Object { $_.Ticker -eq $Global:SelectedTicker } | Select-Object -First 1
-    if (-not $stock) { return }
+    $stock = $stocks | Where-Object { $_.Ticker -eq $target } | Select-Object -First 1
+    if (-not $stock) { return $false }
     
     $cost = $stock.Price * $qty
     if ($Global:GameState.Player.Money -ge $cost) {
@@ -1011,10 +1013,10 @@ function Do-Buy($qty) {
         if ($Global:GameState.PSObject.Properties.Name -notcontains 'Portfolio') {
             $Global:GameState | Add-Member -MemberType NoteProperty -Name "Portfolio" -Value (New-Object PSObject)
         }
-        if ($Global:GameState.Portfolio.PSObject.Properties.Name -notcontains $Global:SelectedTicker) {
-            $Global:GameState.Portfolio | Add-Member -MemberType NoteProperty -Name $Global:SelectedTicker -Value ([PSCustomObject]@{ Shares = 0; AvgPrice = 0.0 })
+        if ($Global:GameState.Portfolio.PSObject.Properties.Name -notcontains $target) {
+            $Global:GameState.Portfolio | Add-Member -MemberType NoteProperty -Name $target -Value ([PSCustomObject]@{ Shares = 0; AvgPrice = 0.0 })
         }
-        $port = $Global:GameState.Portfolio.$($Global:SelectedTicker)
+        $port = $Global:GameState.Portfolio.$target
         $oldTotal = $port.AvgPrice * $port.Shares
         $port.Shares += $qty
         $port.AvgPrice = ($oldTotal + $cost) / $port.Shares
@@ -1038,6 +1040,55 @@ function Do-Buy($qty) {
         }
         
         Update-AllUI
+        return $true
+    }
+    return $false
+}
+
+function Process-WebQueue {
+    if ($Global:ActiveProfileName -eq "" -or $null -eq $Global:GameState) { return }
+    try {
+        if (-not (Test-Path $Global:QueuePath)) { return }
+        $fs = [System.IO.File]::Open($Global:QueuePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $reader = New-Object System.IO.StreamReader($fs)
+        $raw = $reader.ReadToEnd()
+        $reader.Close(); $fs.Close()
+        if ([string]::IsNullOrWhiteSpace($raw)) { return }
+        $script:collected = @()
+        Collect-Orders ($raw -replace "^\uFEFF", "" | ConvertFrom-Json)
+        $orders = @($script:collected)
+        if ($orders.Count -eq 0) { return }
+
+        $mine = @($orders | Where-Object { $_.Action -eq "BUY" -and $_.Profile -ieq $Global:ActiveProfileName })
+        if ($mine.Count -eq 0) { return }
+
+        $stocks = Load-StocksData
+        $keep = New-Object System.Collections.Generic.List[object]
+        foreach ($o in $orders) {
+            $isMine = ($o.Action -eq "BUY" -and $o.Profile -ieq $Global:ActiveProfileName)
+            if (-not $isMine) { $keep.Add($o); continue }
+            $qty = 0
+            try { $qty = [int]$o.Qty } catch { $qty = 0 }
+            $stock = $stocks | Where-Object { $_.Ticker -eq [string]$o.Ticker } | Select-Object -First 1
+            if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) { continue }
+            $cost = $stock.Price * $qty
+            if ($Global:GameState.Player.Money -ge $cost) {
+                Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $qty, $o.Ticker) -ForegroundColor Green
+                Do-Buy $qty $o.Ticker | Out-Null
+            } else {
+                $keep.Add($o)
+            }
+        }
+        if ($keep.Count -eq 0) { "[]" | Set-Content $Global:QueuePath -Encoding UTF8 }
+        else { ConvertTo-Json -InputObject @($keep) -Depth 5 -Compress | Set-Content $Global:QueuePath -Encoding UTF8 }
+    } catch {}
+}
+
+function Collect-Orders($node) {
+    if ($node -is [System.Array]) { foreach ($i in $node) { Collect-Orders $i }; return }
+    if ($node -is [System.Management.Automation.PSCustomObject]) {
+        if ($node.PSObject.Properties.Name -contains 'Ticker') { $script:collected += , $node; return }
+        foreach ($p in $node.PSObject.Properties) { Collect-Orders $p.Value }
     }
 }
 
@@ -1105,6 +1156,7 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 1000
 $timer.Add_Tick({
     if ($null -ne $Global:GameState) {
+        Process-WebQueue
         $rate = [double]$Global:GameState.Sectors.Clicker.AutoRate
         $buff = 1.0
         
