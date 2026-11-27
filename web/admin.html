@@ -42,8 +42,8 @@
 <body>
     <div id="loginScreen">
         <h1>Admin Dashboard</h1>
-        <p class="muted">Masukkan Admin Key (lihat file <code>Data\admin_key.txt</code> di PC server, atau output console saat server pertama kali dijalankan).</p>
-        <input type="password" id="adminKeyInput" placeholder="Admin Key" autocomplete="off">
+        <p class="muted">Masukkan Admin Key 6 digit (lihat console server — tampil setiap kali server dijalankan — atau file <code>Data\admin_key.txt</code> di PC).</p>
+        <input type="password" id="adminKeyInput" placeholder="Admin Key (6 digit)" autocomplete="off" inputmode="numeric" maxlength="6">
         <button onclick="doLogin()">Masuk</button>
         <p id="loginError" style="color:#f44336;"></p>
     </div>
