@@ -7,7 +7,13 @@ Data/queue.json
 *.bak
 *.bak_*
 
+# Backup manual
+*.backup
+
 # Kredensial - JANGAN pernah masuk repo
+Data/admin_key.txt
 Data/devices.json
 Data/pairing.txt
-Data/admin_key.txt
+
+# Output sementara
+tree_output.txt
