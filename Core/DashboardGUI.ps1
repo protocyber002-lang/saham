@@ -43,6 +43,7 @@ $Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
 $Global:ProfilePath = ""
 $Global:ActiveProfileName = ""
+$Global:ProfileLockPath = ""
 $Global:GameState   = $null
 $Global:SaveCounter = 0
 $Global:SelectedTicker = "AAPL"
@@ -54,6 +55,53 @@ $Global:ZoomLevel = 1.0
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
 else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50 } }
+
+# --- KUNCI PROFIL (sama dengan TUI: satu profil satu proses) ---
+function Get-LockOwnerMessage($name, $lockPath) {
+    $owner = "jendela lain"
+    try {
+        $parts = ([System.IO.File]::ReadAllText($lockPath, [System.Text.Encoding]::UTF8).Trim() -split '\|')
+        if ($parts.Count -ge 5) {
+            if ($parts[4] -eq 'GUI') { $owner = "DashboardGUI (jendela lain)" }
+            elseif ($parts[4] -eq 'TUI') { $owner = "TUI" }
+        }
+    } catch { }
+    return ("Profil '{0}' sedang berjalan di {1}. Tutup dulu, lalu coba lagi (satu profil hanya bisa dibuka di satu tempat: GUI atau TUI)." -f $name, $owner)
+}
+
+function Lock-GuiProfile($name) {
+    $lp = Join-Path $Global:ProfilesDir ($name + ".lock")
+    $content = ("{0}|{1}|{2}|{3}|{4}" -f $PID, $env:COMPUTERNAME, [DateTime]::UtcNow.ToString('o'), [System.Guid]::NewGuid().ToString(), "GUI")
+    for ($i = 0; $i -lt 2; $i++) {
+        try {
+            $fs = [System.IO.File]::Open($lp, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($content)
+            $fs.Write($bytes, 0, $bytes.Length)
+            $fs.Close(); $fs.Dispose()
+            $Global:ProfileLockPath = $lp
+            return
+        } catch {
+            $alive = $false
+            try {
+                $raw = [System.IO.File]::ReadAllText($lp).Trim()
+                $lockPid = 0
+                if ([int]::TryParse(($raw -split '\|')[0], [ref]$lockPid)) {
+                    try { $null = Get-Process -Id $lockPid -ErrorAction Stop; $alive = $true } catch { $alive = $false }
+                }
+            } catch { $alive = $false }
+            if ($alive) { throw (Get-LockOwnerMessage $name $lp) }
+            Remove-Item $lp -Force -ErrorAction SilentlyContinue
+        }
+    }
+    throw ("Gagal mengunci profil '{0}'. Coba lagi." -f $name)
+}
+
+function Unlock-GuiProfile {
+    if ($Global:ProfileLockPath -ne "") {
+        Remove-Item $Global:ProfileLockPath -Force -ErrorAction SilentlyContinue
+        $Global:ProfileLockPath = ""
+    }
+}
 
 # --- FUNGSI BANTU DATA ---
 function Load-GameData {
@@ -143,10 +191,16 @@ $btnLogin.FlatAppearance.BorderSize = 0
 $btnLogin.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
 $btnLogin.Add_Click({
     if ($listBoxProfiles.SelectedIndex -ge 0) {
-        $Global:ActiveProfileName = $listBoxProfiles.SelectedItem.ToString()
-        $Global:ProfilePath = Join-Path $Global:ProfilesDir ($Global:ActiveProfileName + ".json")
-        Write-Host ("[WEB BELI] Mulai memantau antrian Data\queue.json untuk profil '{0}'" -f $Global:ActiveProfileName) -ForegroundColor Cyan
-        $formLogin.Close()
+        $name = $listBoxProfiles.SelectedItem.ToString()
+        try {
+            Lock-GuiProfile $name
+            $Global:ActiveProfileName = $name
+            $Global:ProfilePath = Join-Path $Global:ProfilesDir ($name + ".json")
+            Write-Host ("[WEB BELI] Mulai memantau antrian Data\queue.json untuk profil '{0}'" -f $Global:ActiveProfileName) -ForegroundColor Cyan
+            $formLogin.Close()
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "Profil Sedang Dipakai")
+        }
     } else {
         [System.Windows.Forms.MessageBox]::Show("Silakan pilih profil terlebih dahulu!")
     }
@@ -1316,6 +1370,7 @@ $timer.Start()
 $form.Add_FormClosing({
     [SleepPreventer]::AllowSleep()
     Save-GameData
+    Unlock-GuiProfile
     $timer.Stop()
 })
 
