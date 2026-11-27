@@ -23,3 +23,5 @@ tree_output.txt
 Data/profiles/*.json
 Data/stocks.json
 Data/save.json
+# File sementara tulis-atomik
+*.tmp
