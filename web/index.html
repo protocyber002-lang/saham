@@ -190,5 +190,216 @@
 
         checkAuth();
     </script>
+
+
+
+<!-- TOMBOL LOGOUT STATIS (Disembunyikan secara default) -->
+
+
+
+
+<!-- FORM TAMBAHAN: Akan disembunyikan sampai pairing berhasil -->
+
+
+
+<!-- TOMBOL LOGOUT GLOBAL -->
+
+
+<!-- FORM PROFIL (Muncul setelah Pairing) -->
+
+
+
+<!-- TOMBOL LOGOUT (Hanya muncul jika sudah login) -->
+
+
+
+<!-- TOMBOL LOGOUT GLOBAL -->
+
+
+
+<!-- PANEL STATUS USER (KIRI ATAS) -->
+
+
+
+
+<!-- PANEL LOGIN (KIRI ATAS) -->
+<div id="userStatusPanel" style="position: fixed; top: 15px; left: 15px; z-index: 99999; background: rgba(0,0,0,0.9); padding: 10px; border-radius: 8px; border: 1px solid #444; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+    <span id="userProfileText" style="color: #aaa; font-weight: bold; font-family: sans-serif;">Guest (Belum Login)</span>
+    <button id="btnOpenLogin" style="background-color: #00aaff; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Login</button>
+    <button id="btnLogoutGlobal" style="display: none; background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">Logout</button>
+</div>
+
+<!-- MODAL POP-UP LOGIN -->
+<div id="loginModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;">
+    <div style="background: #222; padding: 30px; border-radius: 10px; border: 1px solid #00aaff; text-align: center; width: 80%; max-width: 300px;">
+        <h2 style="color: #00aaff; margin-top: 0;">Login Profil</h2>
+        <input type="text" id="modalProfileInput" placeholder="Nama profil (contoh: ayah1)" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #111; color: white; box-sizing: border-box;">
+        <button id="btnSubmitLogin" style="width: 100%; padding: 10px; background: #00aaff; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">Masuk</button>
+        <button id="btnCloseLogin" style="width: 100%; padding: 10px; background: #555; color: white; border: none; border-radius: 5px; cursor: pointer;">Batal</button>
+    </div>
+</div>
+
+<script>
+/* PATCH V10: SISTEM LOGIN TERPUSAT & PROTEKSI UI */
+document.addEventListener('DOMContentLoaded', () => {
+    const isLoggedIn = localStorage.getItem('ct_logged_in') === 'true';
+    const profileName = localStorage.getItem('ct_profile') || 'Player';
+    
+    const panelText = document.getElementById('userProfileText');
+    const btnOpenLogin = document.getElementById('btnOpenLogin');
+    const btnLogout = document.getElementById('btnLogoutGlobal');
+    const modal = document.getElementById('loginModal');
+    const inputModal = document.getElementById('modalProfileInput');
+
+    // ==========================================
+    // JIKA SUDAH LOGIN
+    // ==========================================
+    if (isLoggedIn) {
+        panelText.innerHTML = "Login: <span style='color: #00ff00;'>" + profileName + "</span>";
+        btnOpenLogin.style.display = 'none';
+        btnLogout.style.display = 'block';
+        
+        btnLogout.addEventListener('click', async () => {
+            if (!confirm("Yakin ingin logout?")) return;
+            btnLogout.innerText = "...";
+            const token = localStorage.getItem('ct_token');
+            if (token) { try { await fetch('/api/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }); } catch(e) {} }
+            localStorage.removeItem('ct_logged_in'); localStorage.removeItem('ct_profile'); localStorage.removeItem('ct_token');
+            window.location.reload();
+        });
+    } 
+    // ==========================================
+    // JIKA BELUM LOGIN (GUEST) -> SEMBUNYIKAN TOMBOL BELI/JUAL
+    // ==========================================
+    else {
+        // Trik Pembersihan: Tunggu 0.5 detik agar web selesai loading, lalu sapu bersih tombol Beli/Jual
+        setTimeout(() => {
+            // Metode 1: Cari berdasarkan teks (Beli, Jual, Buy, Sell)
+            const allElements = document.querySelectorAll('button, div, a, span');
+            allElements.forEach(el => {
+                // Hanya periksa elemen yang tidak punya anak elemen (paling ujung)
+                if (el.children.length === 0) {
+                    const txt = el.innerText.toLowerCase().trim();
+                    if (txt === 'beli 1' || txt === 'beli 10' || txt === 'jual' || txt.includes('beli') || txt.includes('jual')) {
+                        el.style.display = 'none'; // Sembunyikan elemen
+                        el.remove(); // Hapus dari halaman
+                    }
+                }
+            });
+        }, 500);
+
+        // Tampilkan Modal saat tombol Login diklik
+        btnOpenLogin.addEventListener('click', () => {
+            modal.style.display = 'flex';
+            inputModal.focus();
+        });
+
+        document.getElementById('btnCloseLogin').addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+    }
+
+    // ==========================================
+    // LOGIKA PROSES LOGIN (DARI MODAL)
+    // ==========================================
+    document.getElementById('btnSubmitLogin').addEventListener('click', async function() {
+        const profName = inputModal.value.trim();
+        if (!profName) { alert("Masukkan nama profil!"); return; }
+
+        this.innerText = "Memproses...";
+        this.disabled = true;
+
+        let token = localStorage.getItem('ct_token');
+        
+        // Jika belum punya token, minta Pairing Code
+        if (!token) {
+            const code = prompt("Masukkan 6 Digit Pairing Code (Lihat di terminal Server):");
+            if (!code) { this.innerText = "Masuk"; this.disabled = false; return; }
+            
+            try {
+                const resPair = await fetch('/api/pair', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, name: "WebBrowser" })
+                });
+                const dataPair = await resPair.json();
+                if (dataPair.status === 'ok') { 
+                    token = dataPair.token; 
+                    localStorage.setItem('ct_token', token); 
+                } else { 
+                    alert("Pairing Gagal: " + dataPair.message); 
+                    this.innerText = "Masuk"; this.disabled = false; return; 
+                }
+            } catch(e) { alert("Error Koneksi Server"); this.innerText = "Masuk"; this.disabled = false; return; }
+        }
+
+        // Proses Login
+        try {
+            const resLogin = await fetch('/api/login_profile', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ profile: profName })
+            });
+            const dataLogin = await resLogin.json();
+
+            if (dataLogin.status === 'ok') {
+                localStorage.setItem('ct_logged_in', 'true');
+                localStorage.setItem('ct_profile', dataLogin.profile);
+                window.location.reload(); 
+            } else {
+                alert("Gagal Login: " + dataLogin.message);
+                this.innerText = "Masuk"; this.disabled = false;
+            }
+        } catch(e) { alert("Error Koneksi"); this.innerText = "Masuk"; this.disabled = false; }
+    });
+});
+</script>
+<script>
+/* PATCH V11: PENANGKAP ERROR 429 (COOLDOWN) */
+document.addEventListener('DOMContentLoaded', () => {
+    // Kita bungkus fungsi fetch untuk menangkap respon 429 dari /api/buy
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        let [resource, config] = arguments;
+        let response = await originalFetch.apply(this, arguments);
+        
+        // Jika endpoint adalah /api/buy dan statusnya 429
+        if (typeof resource === 'string' && resource.includes('/api/buy') && response.status === 429) {
+            try {
+                // Clone response agar bisa dibaca tanpa merusak response asli
+                const clonedRes = response.clone();
+                const data = await clonedRes.json();
+                alert("⚠️ " + data.message); // Tampilkan pesan "Tunggu X detik lagi"
+            } catch(e) {
+                alert("Tunggu sebentar sebelum membeli lagi.");
+            }
+        }
+        return response;
+    };
+});
+</script>
+<script>
+/* PATCH V12: PROTEKSI DATA KOSONG */
+document.addEventListener('DOMContentLoaded', () => {
+    // Timpa fungsi fetch untuk mencegah error undefined length
+    const originalFetch = window.fetch;
+    window.fetch = async function() {
+        let [resource, config] = arguments;
+        let response = await originalFetch.apply(this, arguments);
+        
+        if (typeof resource === 'string' && resource.includes('/api/history')) {
+            let cloned = response.clone();
+            try {
+                let data = await cloned.json();
+                if (!data.history || !Array.isArray(data.history)) {
+                    // Jika history kosong, buat data dummy agar chart tidak crash
+                    return new Response(JSON.stringify({ ticker: data.ticker, history: [{price: 100}, {price: 101}] }), {
+                        status: 200, headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            } catch(e) {}
+        }
+        return response;
+    };
+});
+</script>
 </body>
 </html>

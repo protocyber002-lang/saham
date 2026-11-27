@@ -1,0 +1,13 @@
+# Log & antrian runtime
+Data/market.log
+Data/queue.json
+
+# File lock & backup otomatis
+*.lock
+*.bak
+*.bak_*
+
+# Kredensial - JANGAN pernah masuk repo
+Data/devices.json
+Data/pairing.txt
+Data/admin_key.txt
