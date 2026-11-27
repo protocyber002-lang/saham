@@ -58,6 +58,16 @@
         const API_BASE = window.location.origin + '/api/';
         let myChart = null;
 
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        function safeTicker(t) {
+            return String(t || '').replace(/[^A-Za-z0-9._-]/g, '');
+        }
+
         function checkAuth() {
             const token = localStorage.getItem('token');
             const profile = localStorage.getItem('profile');
@@ -127,20 +137,21 @@
                 const container = document.getElementById('stockList');
                 container.innerHTML = '';
                 stocks.forEach(s => {
+                    const t = safeTicker(s.Ticker);
                     const div = document.createElement('div');
                     div.className = 'card';
                     div.innerHTML = `
                         <div class="stock-info">
-                            <strong>${s.Ticker}</strong><br>
-                            <span class="name">${s.Name}</span><br>
-                            <span class="price">Rp ${s.Price.toFixed(2)}</span>
+                            <strong>${esc(t)}</strong><br>
+                            <span class="name">${esc(s.Name)}</span><br>
+                            <span class="price">Rp ${Number(s.Price || 0).toFixed(2)}</span>
                         </div>
                         <div class="controls">
-                            <button onclick="event.stopPropagation(); buy('${s.Ticker}', 1)">Beli 1</button>
-                            <button onclick="event.stopPropagation(); buy('${s.Ticker}', 10)">Beli 10</button>
+                            <button onclick="event.stopPropagation(); buy('${t}', 1)">Beli 1</button>
+                            <button onclick="event.stopPropagation(); buy('${t}', 10)">Beli 10</button>
                         </div>
                     `;
-                    div.onclick = () => loadChart(s.Ticker, s.Name);
+                    div.onclick = () => loadChart(t, s.Name);
                     container.appendChild(div);
                 });
             } catch (e) { console.error(e); }
@@ -255,7 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // JIKA SUDAH LOGIN
     // ==========================================
     if (isLoggedIn) {
-        panelText.innerHTML = "Login: <span style='color: #00ff00;'>" + profileName + "</span>";
+        panelText.textContent = "Login: " + profileName;
+        panelText.style.color = '#00ff00';
         btnOpenLogin.style.display = 'none';
         btnLogout.style.display = 'block';
         
