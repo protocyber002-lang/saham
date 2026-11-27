@@ -89,6 +89,18 @@ function Get-ProfileLockPath($name) {
     return (Join-Path $script:ProfilesDir ($name + '.lock'))
 }
 
+function Get-LockOwnerMessage($name, $lockPath) {
+    $owner = "jendela lain"
+    try {
+        $parts = ([System.IO.File]::ReadAllText($lockPath, [System.Text.Encoding]::UTF8).Trim() -split '\|')
+        if ($parts.Count -ge 5) {
+            if ($parts[4] -eq 'GUI') { $owner = "DashboardGUI (jendela lain)" }
+            elseif ($parts[4] -eq 'TUI') { $owner = "TUI" }
+        }
+    } catch { }
+    return ("Profil '{0}' sedang berjalan di {1}. Tutup dulu, lalu coba lagi (satu profil hanya bisa dibuka di satu tempat: GUI atau TUI)." -f $name, $owner)
+}
+
 function Test-ProcessAlive($pid) {
     if (-not $pid) { return $false }
     try {
@@ -118,10 +130,10 @@ function Get-ProfileLockInfo($name) {
     }
 }
 
-function Acquire-ProfileLock($name) {
+function Acquire-ProfileLock($name, $app = "TUI") {
     $lp = Get-ProfileLockPath $name
     $sessionGuid = [System.Guid]::NewGuid().ToString()
-    $content = ("{0}|{1}|{2}|{3}" -f $PID, $env:COMPUTERNAME, [DateTime]::UtcNow.ToString('o'), $sessionGuid)
+    $content = ("{0}|{1}|{2}|{3}|{4}" -f $PID, $env:COMPUTERNAME, [DateTime]::UtcNow.ToString('o'), $sessionGuid, $app)
 
     # Coba buat file lock secara eksklusif (jika sudah ada, gagal)
     try {
@@ -134,7 +146,7 @@ function Acquire-ProfileLock($name) {
         # File sudah ada. Cek apakah valid atau stale.
         $existing = Get-ProfileLockInfo $name
         if ($existing) {
-            throw ("Profil '{0}' sedang dimainkan di window lain." -f $name)
+            throw (Get-LockOwnerMessage $name $lp)
         } else {
             # Stale lock, paksa hapus dan coba lagi
             Remove-Item $lp -Force -ErrorAction SilentlyContinue

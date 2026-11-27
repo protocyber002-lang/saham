@@ -57,9 +57,21 @@ if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath }
 else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50 } }
 
 # --- KUNCI PROFIL (sama dengan TUI: satu profil satu proses) ---
+function Get-LockOwnerMessage($name, $lockPath) {
+    $owner = "jendela lain"
+    try {
+        $parts = ([System.IO.File]::ReadAllText($lockPath, [System.Text.Encoding]::UTF8).Trim() -split '\|')
+        if ($parts.Count -ge 5) {
+            if ($parts[4] -eq 'GUI') { $owner = "DashboardGUI (jendela lain)" }
+            elseif ($parts[4] -eq 'TUI') { $owner = "TUI" }
+        }
+    } catch { }
+    return ("Profil '{0}' sedang berjalan di {1}. Tutup dulu, lalu coba lagi (satu profil hanya bisa dibuka di satu tempat: GUI atau TUI)." -f $name, $owner)
+}
+
 function Lock-GuiProfile($name) {
     $lp = Join-Path $Global:ProfilesDir ($name + ".lock")
-    $content = ("{0}|{1}|{2}|{3}" -f $PID, $env:COMPUTERNAME, [DateTime]::UtcNow.ToString('o'), [System.Guid]::NewGuid().ToString())
+    $content = ("{0}|{1}|{2}|{3}|{4}" -f $PID, $env:COMPUTERNAME, [DateTime]::UtcNow.ToString('o'), [System.Guid]::NewGuid().ToString(), "GUI")
     for ($i = 0; $i -lt 2; $i++) {
         try {
             $fs = [System.IO.File]::Open($lp, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
@@ -77,7 +89,7 @@ function Lock-GuiProfile($name) {
                     try { $null = Get-Process -Id $lockPid -ErrorAction Stop; $alive = $true } catch { $alive = $false }
                 }
             } catch { $alive = $false }
-            if ($alive) { throw ("Profil '{0}' sedang dibuka di TUI/jendela lain. Tutup dulu, lalu coba lagi." -f $name) }
+            if ($alive) { throw (Get-LockOwnerMessage $name $lp) }
             Remove-Item $lp -Force -ErrorAction SilentlyContinue
         }
     }
