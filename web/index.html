@@ -266,7 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // JIKA SUDAH LOGIN
     // ==========================================
     if (isLoggedIn) {
-        panelText.innerHTML = "Login: <span style='color: #00ff00;'>" + profileName + "</span>";
+        panelText.textContent = "Login: " + profileName;
+        panelText.style.color = '#00ff00';
         btnOpenLogin.style.display = 'none';
         btnLogout.style.display = 'block';
         
