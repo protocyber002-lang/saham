@@ -323,7 +323,7 @@ while ($listener.IsListening) {
                             if ($d.Value.Token -eq $auth.Substring(7)) { if ($d.Value.PSObject.Properties.Name -contains "Profile") { $profName = $d.Value.Profile }; break }
                         }
                         
-                        $queue += @{ Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
+                        $queue += @{ Id = [Guid]::NewGuid().ToString("N"); Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
                         ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
                         
                         Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2}" -f $profName, $qty, $ticker) -ForegroundColor Green
