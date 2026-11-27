@@ -15,6 +15,7 @@ $Global:PairingCode = (Get-Random -Minimum 100000 -Maximum 999999).ToString()
 $devicesPath = Join-Path $root "Data\devices.json"
 $stocksPath  = Join-Path $root "Data\stocks.json"
 $queuePath   = Join-Path $root "Data\queue.json"
+$receiptsPath = Join-Path $root "Data\receipts.json"
 $webRoot     = Join-Path $root "web"
 
 if (-not (Test-Path (Join-Path $root "Data"))) { New-Item -ItemType Directory -Path (Join-Path $root "Data") -Force | Out-Null }
@@ -323,11 +324,33 @@ while ($listener.IsListening) {
                             if ($d.Value.Token -eq $auth.Substring(7)) { if ($d.Value.PSObject.Properties.Name -contains "Profile") { $profName = $d.Value.Profile }; break }
                         }
                         
-                        $queue += @{ Id = [Guid]::NewGuid().ToString("N"); Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
+                        $orderId = [Guid]::NewGuid().ToString("N")
+                        $queue += @{ Id = $orderId; Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
                         ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
                         
-                        Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2}" -f $profName, $qty, $ticker) -ForegroundColor Green
-                        $respJson = '{"status":"ok","message":"Perintah beli dikirim"}'
+                        Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2} (order {3})" -f $profName, $qty, $ticker, $orderId.Substring(0, 8)) -ForegroundColor Green
+                        $respJson = @{ status = "ok"; message = "Perintah beli dikirim"; orderId = $orderId } | ConvertTo-Json -Compress
+                    }
+                }
+            }
+            elseif ($path -eq "/api/buy_status") {
+                if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                else {
+                    $orderId = $req.QueryString["orderId"]
+                    $respJson = '{"status":"pending"}'
+                    if ($orderId -and (Test-Path $receiptsPath)) {
+                        $rawR = Read-FileSafe $receiptsPath
+                        if (-not [string]::IsNullOrWhiteSpace($rawR)) {
+                            try {
+                                $receipts = @($rawR | ConvertFrom-Json)
+                                foreach ($r in $receipts) {
+                                    if ($r.Id -eq $orderId) {
+                                        $respJson = @{ status = $r.Status; message = $r.Message } | ConvertTo-Json -Compress
+                                        break
+                                    }
+                                }
+                            } catch { }
+                        }
                     }
                 }
             }

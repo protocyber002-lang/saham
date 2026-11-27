@@ -35,6 +35,7 @@ $Global:RootPath = Split-Path -Parent $PSScriptRoot
 $Global:ProfilesDir = Join-Path $Global:RootPath "Data\profiles"
 $Global:StocksPath  = Join-Path $Global:RootPath "Data\stocks.json"
 $Global:QueuePath   = Join-Path $Global:RootPath "Data\queue.json"
+$Global:ReceiptsPath = Join-Path $Global:RootPath "Data\receipts.json"
 $Global:ProcessedOrderIds = New-Object System.Collections.Generic.List[string]
 $Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
@@ -1047,6 +1048,25 @@ function Do-Buy([int]$qty, [string]$tickerOverride = "") {
     return $false
 }
 
+function Add-Receipt($id, $status, $message) {
+    try {
+        $receipts = @()
+        if (Test-Path $Global:ReceiptsPath) {
+            $rawR = [System.IO.File]::ReadAllText($Global:ReceiptsPath)
+            if (-not [string]::IsNullOrWhiteSpace($rawR)) {
+                try { $receipts = @($rawR -replace "^\uFEFF", "" | ConvertFrom-Json) } catch { $receipts = @() }
+            }
+        }
+        $cutoff = [DateTime]::UtcNow.AddMinutes(-15).ToString('o')
+        $receipts = @($receipts | Where-Object { $_.Time -ge $cutoff })
+        $receipts += @{ Id = $id; Status = $status; Message = $message; Time = [DateTime]::UtcNow.ToString('o') }
+        if ($receipts.Count -gt 50) { $receipts = @($receipts | Select-Object -Last 50) }
+        for ($i = 0; $i -lt 3; $i++) {
+            try { ConvertTo-Json -InputObject @($receipts) -Depth 5 -Compress | Set-Content $Global:ReceiptsPath -Encoding UTF8; return } catch { Start-Sleep -Milliseconds 50 }
+        }
+    } catch {}
+}
+
 function Get-OrderId($o) {
     if ($o.PSObject.Properties.Name -contains 'Id' -and $o.Id) { return [string]$o.Id }
     return ([string]$o.Ticker) + "|" + [string]$o.Qty + "|" + [string]$o.Time
@@ -1100,6 +1120,7 @@ function Process-WebQueue {
             $stock = $stocks | Where-Object { $_.Ticker -eq [string]$o.Ticker } | Select-Object -First 1
             if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) {
                 $Global:ProcessedOrderIds.Add($oid)
+                Add-Receipt $oid "Failed" "Ticker/qty tidak valid"
                 Write-Host "[WEB BELI] Order dibatalkan (ticker/qty tidak valid)" -ForegroundColor Yellow
                 continue
             }
@@ -1107,10 +1128,12 @@ function Process-WebQueue {
             if ($Global:GameState.Player.Money -ge $cost) {
                 if (Do-Buy $qty $o.Ticker) {
                     $Global:ProcessedOrderIds.Add($oid)
+                    Add-Receipt $oid "Executed" "Beli tercatat di dashboard"
                     Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $qty, $o.Ticker) -ForegroundColor Green
                 }
             } elseif (-not ($Global:QueueSeenIds -contains $oid)) {
                 $Global:QueueSeenIds.Add($oid)
+                Add-Receipt $oid "Held" "Uang belum cukup - order ditahan sampai uang cukup"
                 Write-Host ("[WEB BELI] Uang belum cukup untuk {0} x{1}. Order ditahan." -f $o.Ticker, $qty) -ForegroundColor Yellow
             }
         }

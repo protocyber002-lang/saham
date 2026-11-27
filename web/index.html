@@ -157,6 +157,24 @@
             } catch (e) { console.error(e); }
         }
 
+        function pollBuyStatus(orderId) {
+            return new Promise(resolve => {
+                const token = localStorage.getItem('token');
+                let tries = 0;
+                const t = setInterval(async () => {
+                    tries++;
+                    try {
+                        const res = await fetch(API_BASE + 'buy_status?orderId=' + encodeURIComponent(orderId), {
+                            headers: { 'Authorization': 'Bearer ' + token }
+                        });
+                        const d = await res.json();
+                        if (d.status && d.status !== 'pending') { clearInterval(t); resolve(d); return; }
+                    } catch (e) {}
+                    if (tries >= 15) { clearInterval(t); resolve({ status: 'timeout' }); }
+                }, 1000);
+            });
+        }
+
         async function buy(ticker, qty) {
             const token = localStorage.getItem('token');
             if (!token) return;
@@ -167,7 +185,14 @@
                     body: JSON.stringify({ ticker: ticker, qty: qty })
                 });
                 const data = await res.json();
-                if (data.status === 'ok') { alert('Berhasil beli ' + qty + ' ' + ticker); }
+                if (data.status === 'ok') {
+                    alert('Perintah beli dikirim. Menunggu tercatat di dashboard...');
+                    const st = await pollBuyStatus(data.orderId);
+                    if (st.status === 'Executed') { alert('Aksi beli tercatat di DashboardGUI ✔ (' + qty + ' ' + ticker + ')'); }
+                    else if (st.status === 'Held') { alert('Order ditahan: ' + (st.message || 'uang belum cukup') + '. Otomatis dieksekusi saat uang cukup.'); }
+                    else if (st.status === 'Failed') { alert('Aksi beli gagal diproses di dashboard: ' + (st.message || 'tidak valid')); }
+                    else { alert('Belum ada konfirmasi dari DashboardGUI (GUI untuk profil ini mungkin tidak terbuka). Order tetap menunggu di antrian.'); }
+                }
                 else { alert('Gagal: ' + data.message); }
                 loadStocks();
             } catch (e) { alert('Gagal terhubung.'); }
