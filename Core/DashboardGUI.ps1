@@ -1076,7 +1076,12 @@ function Add-Receipt($id, $status, $message) {
             $receipts = @()
         }
         $cutoff = [DateTime]::UtcNow.AddMinutes(-15).ToString('o')
-        $receipts = @($receipts | Where-Object { $_.Time -and $_.Time -ge $cutoff })
+        $kept = @()
+        foreach ($r in $receipts) {
+            $tProp = $r.PSObject.Properties['Time']
+            if ($null -ne $tProp -and $tProp.Value -and ([string]$tProp.Value) -ge $cutoff) { $kept += $r }
+        }
+        $receipts = @($kept)
         $receipts += @{ Id = $id; Status = $status; Message = $message; Time = [DateTime]::UtcNow.ToString('o') }
         if ($receipts.Count -gt 50) { $receipts = @($receipts | Select-Object -Last 50) }
         $lastErr = $null
