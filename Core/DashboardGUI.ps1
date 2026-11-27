@@ -20,6 +20,7 @@ public class SleepPreventer {
 "@
 }
 [SleepPreventer]::PreventSleep()
+Write-Host "[DashboardGUI] Versi baru aktif: konfirmasi beli web (Add-Receipt + receipts.json)" -ForegroundColor Cyan
 
 # --- KONFIGURASI WARNA TEMA ---
 $ColorBg       = [System.Drawing.Color]::FromArgb(24, 24, 28)
@@ -1061,9 +1062,11 @@ function Add-Receipt($id, $status, $message) {
         $receipts = @($receipts | Where-Object { $_.Time -ge $cutoff })
         $receipts += @{ Id = $id; Status = $status; Message = $message; Time = [DateTime]::UtcNow.ToString('o') }
         if ($receipts.Count -gt 50) { $receipts = @($receipts | Select-Object -Last 50) }
+        $lastErr = $null
         for ($i = 0; $i -lt 3; $i++) {
-            try { ConvertTo-Json -InputObject @($receipts) -Depth 5 -Compress | Set-Content $Global:ReceiptsPath -Encoding UTF8; return } catch { Start-Sleep -Milliseconds 50 }
+            try { ConvertTo-Json -InputObject @($receipts) -Depth 5 -Compress | Set-Content $Global:ReceiptsPath -Encoding UTF8; return } catch { $lastErr = $_; Start-Sleep -Milliseconds 50 }
         }
+        if ($lastErr) { Write-Host ("[WEB BELI] GAGAL menulis kuitansi: " + $lastErr.Exception.Message) -ForegroundColor Red }
     } catch {}
 }
 
