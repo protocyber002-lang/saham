@@ -1065,22 +1065,34 @@ function Do-Buy([int]$qty, [string]$tickerOverride = "") {
 function Add-Receipt($id, $status, $message) {
     try {
         $receipts = @()
-        if (Test-Path $Global:ReceiptsPath) {
-            $rawR = [System.IO.File]::ReadAllText($Global:ReceiptsPath)
-            if (-not [string]::IsNullOrWhiteSpace($rawR)) {
-                try { $receipts = @($rawR -replace "^\uFEFF", "" | ConvertFrom-Json) } catch { $receipts = @() }
+        try {
+            if (Test-Path $Global:ReceiptsPath) {
+                $rawR = [System.IO.File]::ReadAllText($Global:ReceiptsPath)
+                if (-not [string]::IsNullOrWhiteSpace($rawR)) {
+                    try { $receipts = @($rawR -replace "^\uFEFF", "" | ConvertFrom-Json) } catch { $receipts = @() }
+                }
             }
+        } catch {
+            Write-Host ("[WEB BELI][WARN] Gagal baca receipts.json (lanjut dgn daftar baru): " + $_.Exception.Message) -ForegroundColor Yellow
+            $receipts = @()
         }
         $cutoff = [DateTime]::UtcNow.AddMinutes(-15).ToString('o')
-        $receipts = @($receipts | Where-Object { $_.Time -ge $cutoff })
+        $receipts = @($receipts | Where-Object { $_.Time -and $_.Time -ge $cutoff })
         $receipts += @{ Id = $id; Status = $status; Message = $message; Time = [DateTime]::UtcNow.ToString('o') }
         if ($receipts.Count -gt 50) { $receipts = @($receipts | Select-Object -Last 50) }
         $lastErr = $null
-        for ($i = 0; $i -lt 3; $i++) {
-            try { ConvertTo-Json -InputObject @($receipts) -Depth 5 -Compress | Set-Content $Global:ReceiptsPath -Encoding UTF8; return } catch { $lastErr = $_; Start-Sleep -Milliseconds 50 }
+        for ($i = 0; $i -lt 10; $i++) {
+            try {
+                $tmp = $Global:ReceiptsPath + ".tmp"
+                ConvertTo-Json -InputObject @($receipts) -Depth 5 -Compress | Set-Content $tmp -Encoding UTF8
+                Move-Item $tmp $Global:ReceiptsPath -Force
+                return
+            } catch { $lastErr = $_; Start-Sleep -Milliseconds 100 }
         }
-        if ($lastErr) { Write-Host ("[WEB BELI] GAGAL menulis kuitansi: " + $lastErr.Exception.Message) -ForegroundColor Red }
-    } catch {}
+        Write-Host ("[WEB BELI][ERROR] GAGAL menulis kuitansi " + $id + ": " + $lastErr.Exception.Message) -ForegroundColor Red
+    } catch {
+        Write-Host ("[WEB BELI][ERROR] Add-Receipt exception: " + $_.Exception.Message) -ForegroundColor Red
+    }
 }
 
 function Get-OrderId($o) {
@@ -1167,7 +1179,7 @@ function Process-WebQueue {
                 $Global:QueueSeenIds.Clear()
             }
         }
-    } catch {}
+    } catch { Write-Host ("[WEB BELI][ERROR] Process-WebQueue: " + $_.Exception.Message) -ForegroundColor Red }
     finally { if ($lockFs) { try { $lockFs.Close() } catch {} } }
 
     foreach ($x in $toExecute) {
@@ -1189,7 +1201,7 @@ function Process-WebQueue {
                 }
                 $q += $o
                 ConvertTo-Json -InputObject @($q) -Depth 5 -Compress | Set-Content $Global:QueuePath -Encoding UTF8
-            } catch {} finally { if ($lockFs2) { try { $lockFs2.Close() } catch {} } }
+            } catch { Write-Host ("[WEB BELI][ERROR] Gagal mengembalikan order ke antrian: " + $_.Exception.Message) -ForegroundColor Red } finally { if ($lockFs2) { try { $lockFs2.Close() } catch {} } }
         }
     }
 }
