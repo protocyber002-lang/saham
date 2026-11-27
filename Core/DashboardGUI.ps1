@@ -37,6 +37,7 @@ $Global:ProfilesDir = Join-Path $Global:RootPath "Data\profiles"
 $Global:StocksPath  = Join-Path $Global:RootPath "Data\stocks.json"
 $Global:QueuePath   = Join-Path $Global:RootPath "Data\queue.json"
 $Global:ReceiptsPath = Join-Path $Global:RootPath "Data\receipts.json"
+$Global:QueueLockPath = Join-Path $Global:RootPath "Data\queue.lock"
 $Global:ProcessedOrderIds = New-Object System.Collections.Generic.List[string]
 $Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
@@ -1086,10 +1087,20 @@ function Write-QueueSafe($orders) {
     return $false
 }
 
+function Enter-QueueLock {
+    for ($i = 0; $i -lt 60; $i++) {
+        try { return [System.IO.File]::Open($Global:QueueLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None) }
+        catch { Start-Sleep -Milliseconds 50 }
+    }
+    return $null
+}
+
 function Process-WebQueue {
     if ($Global:ActiveProfileName -eq "" -or $null -eq $Global:GameState) { return }
+    $lockFs = $null
     try {
         if (-not (Test-Path $Global:QueuePath)) { return }
+        $lockFs = Enter-QueueLock
         $fs = [System.IO.File]::Open($Global:QueuePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
         $reader = New-Object System.IO.StreamReader($fs)
         $raw = $reader.ReadToEnd()
@@ -1148,6 +1159,7 @@ function Process-WebQueue {
             $Global:QueueSeenIds.Clear()
         }
     } catch {}
+    finally { if ($lockFs) { try { $lockFs.Close() } catch {} } }
 }
 
 function Collect-Orders($node) {

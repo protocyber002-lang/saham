@@ -15,7 +15,17 @@ $Global:PairingCode = (Get-Random -Minimum 100000 -Maximum 999999).ToString()
 $devicesPath = Join-Path $root "Data\devices.json"
 $stocksPath  = Join-Path $root "Data\stocks.json"
 $queuePath   = Join-Path $root "Data\queue.json"
+$queueLockPath = Join-Path $root "Data\queue.lock"
 $receiptsPath = Join-Path $root "Data\receipts.json"
+
+function Enter-QueueLock {
+    for ($i = 0; $i -lt 60; $i++) {
+        try { return [System.IO.File]::Open($queueLockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None) }
+        catch { Start-Sleep -Milliseconds 50 }
+    }
+    return $null
+}
+function Exit-QueueLock($fs) { if ($fs) { try { $fs.Close() } catch {} } }
 $webRoot     = Join-Path $root "web"
 
 if (-not (Test-Path (Join-Path $root "Data"))) { New-Item -ItemType Directory -Path (Join-Path $root "Data") -Force | Out-Null }
@@ -314,23 +324,26 @@ while ($listener.IsListening) {
                         $respJson = '{"status":"error","message":"Input tidak valid"}'
                         $res.StatusCode = 400
                     } else {
-                        $queue = @()
-                        if (Test-Path $queuePath) {
-                            $rawQ = Read-FileSafe $queuePath
-                            if (-not [string]::IsNullOrWhiteSpace($rawQ)) { $queue = @($rawQ | ConvertFrom-Json) }
-                        }
-                        
-                        $profName = ""
-                        foreach ($d in $devs.PSObject.Properties) {
-                            if ($d.Value.Token -eq $auth.Substring(7)) { if ($d.Value.PSObject.Properties.Name -contains "Profile") { $profName = $d.Value.Profile }; break }
-                        }
-                        
-                        $orderId = [Guid]::NewGuid().ToString("N")
-                        $queue += @{ Id = $orderId; Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
-                        ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
-                        
-                        Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2} (order {3})" -f $profName, $qty, $ticker, $orderId.Substring(0, 8)) -ForegroundColor Green
-                        $respJson = @{ status = "ok"; message = "Perintah beli dikirim"; orderId = $orderId } | ConvertTo-Json -Compress
+                        $lockFs = Enter-QueueLock
+                        try {
+                            $queue = @()
+                            if (Test-Path $queuePath) {
+                                $rawQ = Read-FileSafe $queuePath
+                                if (-not [string]::IsNullOrWhiteSpace($rawQ)) { $queue = @($rawQ | ConvertFrom-Json) }
+                            }
+                            
+                            $profName = ""
+                            foreach ($d in $devs.PSObject.Properties) {
+                                if ($d.Value.Token -eq $auth.Substring(7)) { if ($d.Value.PSObject.Properties.Name -contains "Profile") { $profName = $d.Value.Profile }; break }
+                            }
+                            
+                            $orderId = [Guid]::NewGuid().ToString("N")
+                            $queue += @{ Id = $orderId; Action = "BUY"; Ticker = $ticker; Qty = $qty; Profile = $profName; Time = [DateTime]::UtcNow.ToString('o') }
+                            ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
+                            
+                            Write-Host ("[LOG BELI] Profil '{0}' membeli {1} lembar {2} (order {3})" -f $profName, $qty, $ticker, $orderId.Substring(0, 8)) -ForegroundColor Green
+                            $respJson = @{ status = "ok"; message = "Perintah beli dikirim"; orderId = $orderId } | ConvertTo-Json -Compress
+                        } finally { Exit-QueueLock $lockFs }
                     }
                 }
             }
