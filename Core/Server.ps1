@@ -50,11 +50,12 @@ $Global:PairingCode | Set-Content (Join-Path $root "Data\pairing.txt") -Encoding
 $adminKeyPath = Join-Path $root "Data\admin_key.txt"
 $Global:AdminKey = $null
 if (Test-Path $adminKeyPath) { $Global:AdminKey = (Get-Content $adminKeyPath -Raw).Trim() }
-if ([string]::IsNullOrWhiteSpace($Global:AdminKey)) {
-    $Global:AdminKey = [Guid]::NewGuid().ToString("N")
+if ([string]::IsNullOrWhiteSpace($Global:AdminKey) -or $Global:AdminKey.Length -gt 6) {
+    $Global:AdminKey = (Get-Random -Minimum 100000 -Maximum 999999).ToString()
     [System.IO.File]::WriteAllText($adminKeyPath, $Global:AdminKey)
-    Write-Log -Tag "ADMIN" -Color Magenta -Message "ADMIN KEY BARU (simpan baik-baik, ada juga di Data\admin_key.txt): $Global:AdminKey"
+    Write-Log -Tag "ADMIN" -Color Magenta -Message "ADMIN KEY BARU (6 digit, mudah diketik di HP; simpan baik-baik): $Global:AdminKey"
 }
+Write-Log -Tag "ADMIN" -Color Cyan -Message ("Admin Key: {0} (tampil setiap start; juga di Data\admin_key.txt)" -f $Global:AdminKey)
 
 if (-not (Test-Path $devicesPath)) { "{}" | Set-Content $devicesPath -Encoding UTF8 }
 if (-not (Test-Path $queuePath)) { "[]" | Set-Content $queuePath -Encoding UTF8 }
