@@ -38,7 +38,7 @@ function Render-Dashboard {
 
             if ($isBotMenu) {
         $stocks = Load-StockData
-        $lines += "====================== AUTO-BOT SAHAM ======================"
+        $lines += ("============== AUTO-BOT SAHAM : {0}  ==============" -f (Get-ActiveProfile))
         $lines += " ID | TICKER | STATUS | BELI% | JUAL% | SISA WAKTU"
         $lines += "------------------------------------------------------------"
         
@@ -110,7 +110,7 @@ function Render-Dashboard {
         }
         $totalProfit = $totalStockValue - $totalStockCost
         
-        $lines += "============================= PASAR SAHAM =============================="
+        $lines += ("======================= PASAR SAHAM : {0} =========================" -f (Get-ActiveProfile))
         $lines += " ID | TICKER | BELI       | HARGA SKRG | TREN   | SINYAL (Probabilitas) | OWN"
         $lines += "-----------------------------------------------------------------------"
         
@@ -170,7 +170,7 @@ function Render-Dashboard {
         if ($totalProfit -gt 0) { $pStr = "+$pStr" }
         $lines += ("TOTAL P/L : Rp {0,12}" -f $pStr)
         $lines += ("DETAIL {0}: {1} lembar | Avg Rp {2:N2} | Est P/L Rp {3:N2}" -f $selSt.Ticker, $selPort.Shares, $selPort.AvgPrice, $profit)
-        $lines += "[W/S] Pilih | [1] Beli 1 | [2] Beli 10 | [3] Beli 50 | [4] Beli 100"
+        $lines += " [W/S] Pilih | [1] Beli 1 | [2] Beli 10 | [3] Beli 50 | [4] Beli 100 | [i] Input Cepat"
         $lines += " [5] Jual 10 | [6] Jual Semua | [B] Menu Auto-Bot | [ESC] Kembali ke Game"
         
         $msg = Get-SafeVal $flags 'LastClickMsg' ""
@@ -285,7 +285,7 @@ function Render-Dashboard {
         $color = "Gray"
             if ($isBotMenu) {
         $stocks = Load-StockData
-        $lines += "====================== AUTO-BOT SAHAM ======================"
+        $lines += ("============== AUTO-BOT SAHAM : {0}  ==============" -f (Get-ActiveProfile))
         $lines += " ID | TICKER | STATUS | BELI% | JUAL% | SISA WAKTU"
         $lines += "------------------------------------------------------------"
         

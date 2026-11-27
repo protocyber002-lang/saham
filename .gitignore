@@ -1,3 +1,19 @@
+# Log & antrian runtime
+Data/market.log
+Data/queue.json
+
+# File lock & backup otomatis
+*.lock
+*.bak
+*.bak_*
+
+# Backup manual
+*.backup
+
+# Kredensial - JANGAN pernah masuk repo
 Data/admin_key.txt
 Data/devices.json
 Data/pairing.txt
+
+# Output sementara
+tree_output.txt

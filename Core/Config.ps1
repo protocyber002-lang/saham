@@ -65,4 +65,17 @@ $Global:Config = @{
     AutoBuyQuantity = 10              # Jumlah lembar yang dibeli bot
     AutoSellTriggerPct = -50.0        # Jual otomatis jika rugi 50%
     AutoSellRemaining = 1             # Sisa saham setelah dijual bot
+
+    # --- TAB KERJA: MATEMATIKA ---
+    MathWorkAutoMult = 3.0        # Bonus Auto Income 3x
+    MathWorkAutoSec  = 20.0       # Selama 20 detik
+    MathWorkFastBonusClickMult = 5.0 # Bonus Click Gain 5x jika benar < 5 detik
+    MathWorkFastBonusClickSec  = 15.0 # Selama 15 detik
+    MathWorkRewardBase = 1000.0   # Bonus langsung (1000 x level)
+
+    # --- TAB KERJA: DEVELOPER BANGUNAN ---
+    BuildMaterialCost = 500000.0  # Harga bahan bangunan
+    BuildLaborCost    = 200000.0  # Honor tenaga kerja
+    BuildWaitMinutes  = 30.0      # Waktu tunggu bangunan (menit)
+    BuildSellMarkupPct = 50.0     # Markup harga jual rumah (50%)
 }

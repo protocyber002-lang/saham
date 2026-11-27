@@ -7,6 +7,29 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+# --- ANTI-SLEEP (MENCEGAH PC/LAPTOP SLEEP) ---
+if (-not ([System.Management.Automation.PSTypeName]'SleepPreventer').Type) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class SleepPreventer {
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern uint SetThreadExecutionState(uint esFlags);
+    public const uint ES_CONTINUOUS = 0x80000000;
+    public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+    public const uint ES_DISPLAY_REQUIRED = 0x00000002;
+    public static void PreventSleep() {
+        SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
+    }
+    public static void AllowSleep() {
+        SetThreadExecutionState(ES_CONTINUOUS);
+    }
+}
+"@
+}
+[SleepPreventer]::PreventSleep()
+
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $root 'Core\Compat.ps1')
 . (Join-Path $root 'Core\Config.ps1')
@@ -33,10 +56,12 @@ if ($null -eq $engineJob -or $engineJob.State -ne 'Running') {
     Write-Host "[INFO] Market Engine sudah berjalan." -ForegroundColor DarkCyan
 }
 
+# --- LOAD STOCK VIEWER SETELAH SEMUA MODUL SIAP ---
 . (Join-Path $root 'Modules\StockViewer.ps1')
 
 if ($saham) {
     Start-StockViewer
+    [SleepPreventer]::AllowSleep()
     return
 }
 
@@ -44,12 +69,10 @@ if ($saham) {
 if (-not (Test-Path "D:\POWERSHELL\CLICKTYCOONIDLE\Data")) {
     New-Item -ItemType Directory -Path "D:\POWERSHELL\CLICKTYCOONIDLE\Data" -Force | Out-Null
 }
-# Gunakan try/catch untuk menghindari error StrictMode jika variabel belum ada
 $Global:PairingCode = $null
 try {
-    if ($null -ne $Global:PairingCode -and $Global:PairingCode -ne "") { } # dummy
+    if ($null -ne $Global:PairingCode -and $Global:PairingCode -ne "") { }
 } catch { }
-# Deklarasi eksplisit
 $pairFile = "D:\POWERSHELL\CLICKTYCOONIDLE\Data\pairing.txt"
 if (Test-Path $pairFile) {
     $Global:PairingCode = (Get-Content $pairFile -Raw).Trim()
@@ -120,7 +143,6 @@ $autoProfileChecked = $false
 while (-not $globalQuit) {
     $selectedProfile = $null
     
-    # --- AUTO SELECT PROFILE DARI CLI ---
     if (-not $autoProfileChecked -and $profile) {
         $autoProfileChecked = $true
         $profiles = @(Get-ProfileList)
@@ -206,3 +228,4 @@ while (-not $globalQuit) {
     }
 }
 Write-Host "Sampai jumpa!" -ForegroundColor Cyan
+[SleepPreventer]::AllowSleep()

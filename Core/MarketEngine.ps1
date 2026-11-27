@@ -1,7 +1,7 @@
-# MarketEngine.ps1 - Entitas Tunggal Penggerak Harga Saham (Background)
+# MarketEngine.ps1 - Entitas Tunggal Penggerak Harga Saham
 Set-StrictMode -Version 2.0
-$Global:StockDataPath = 'D:\POWERSHELL\CLICKTYCOONIDLE\Data\stocks.json'
-$logPath = 'D:\POWERSHELL\CLICKTYCOONIDLE\Data\market.log'
+$Global:StockDataPath = Join-Path $PSScriptRoot '..\Data\stocks.json'
+$logPath = Join-Path $PSScriptRoot '..\Data\market.log'
 
 function Write-Log($msg) {
     try {
@@ -14,9 +14,15 @@ function Save-MarketData($stocks) {
     try {
         # Konversi Time ke string ISO agar aman saat diserialisasi
         foreach ($s in $stocks) {
+            $newHist = @()
             foreach ($h in $s.History) {
-                if ($h.Time -is [DateTime]) { $h.Time = $h.Time.ToString("o") }
+                if ($h.Time -is [DateTime]) {
+                    $newHist += @{ Time = $h.Time.ToString("o"); Price = $h.Price }
+                } else {
+                    $newHist += $h
+                }
             }
+            $s.History = $newHist
         }
         $json = $stocks | ConvertTo-Json -Depth 5 -Compress
         $tmp = "$Global:StockDataPath.tmp"

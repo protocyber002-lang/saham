@@ -1,4 +1,4 @@
-# StockViewer.ps1 - GUI Candlestick (Presisi & Backfill Instan)
+# StockViewer.ps1 - GUI Candlestick (Data Asli dari stocks.json)
 Set-StrictMode -Version 2.0
 
 function Start-StockViewer {
@@ -21,16 +21,16 @@ function Start-StockViewer {
 
     $Global:SelectedStockView = $Global:StockViewerData[0]
     
-    # Konfigurasi Timeframe
+    # Konfigurasi Timeframe (Disamakan dengan DashboardGUI)
     $Global:TfConfig = @(
-        @{ Label = "1 Mnt";  Minutes = 1;   BucketSec = 5 },    # Candle 5 detik (isi 5 data)
-        @{ Label = "5 Mnt";  Minutes = 5;   BucketSec = 15 },   # Candle 15 detik (isi 15 data)
-        @{ Label = "15 Mnt"; Minutes = 15;  BucketSec = 30 },   # Candle 30 detik (isi 30 data)
-        @{ Label = "1 Jam";  Minutes = 60;  BucketSec = 60 },   # Candle 1 menit (isi 60 data)
-        @{ Label = "12 Jam"; Minutes = 720; BucketSec = 600 },  # Candle 10 menit
-        @{ Label = "1 Hari"; Minutes = 1440;BucketSec = 1200 }  # Candle 20 menit
+        @{ Label = "1 Mnt";  Minutes = 1;   BucketSec = 2 },
+        @{ Label = "5 Mnt";  Minutes = 5;   BucketSec = 5 },
+        @{ Label = "15 Mnt"; Minutes = 15;  BucketSec = 10 },
+        @{ Label = "1 Jam";  Minutes = 60;  BucketSec = 15 },
+        @{ Label = "12 Jam"; Minutes = 720; BucketSec = 30 },
+        @{ Label = "1 Hari"; Minutes = 1440;BucketSec = 60 }
     )
-    $Global:CurrentTfIdx = 1 # Default 5 Mnt
+    $Global:CurrentTfIdx = 1
     $Global:IsZoomed = $false
 
     # --- SETUP FORM ---
@@ -74,11 +74,9 @@ function Start-StockViewer {
 
     $series = New-Object System.Windows.Forms.DataVisualization.Charting.Series
     $series.Name = "Price"
-    $series.ChartType = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]::Candlestick
-    $series["PointWidth"] = "0.8"
-    $series["PriceUpColor"] = "LimeGreen"
-    $series["PriceDownColor"] = "Crimson"
-    $series.Color = [System.Drawing.Color]::Gray
+    $series.ChartType = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]::Line
+    $series.BorderWidth = 2
+    $series.Color = [System.Drawing.Color]::Cyan
     $chart.Series.Add($series)
 
     function Reset-Zoom {
@@ -100,21 +98,41 @@ function Start-StockViewer {
         $now = [DateTime]::Now
         $startTime = $now.AddMinutes(-$cfg.Minutes)
 
-        # --- DATA BACKFILL INSTAN (Jika data kurang dari 60 titik) ---
-        $history = @($s.History)
-        # Jika data kurang dari 60 titik (1 menit), buat backfill data per 1 detik
-        if ($history.Count -lt 60) {
-            $history = @()
-            $tempPrice = $s.Price
-            for ($i = 60; $i -ge 1; $i--) {
-                $t = $now.AddSeconds(-$i * 1)
-                $tempPrice += (Get-Random -Minimum -20 -Maximum 20) / 100.0
-                $history += @{ Time = $t; Price = $tempPrice }
+        # --- PARSING DATA ASLI (SAMA DENGAN DASHBOARD) ---
+        $history = @()
+        if ($s.History) {
+            foreach ($h in $s.History) {
+                if ($h -is [System.Collections.IDictionary]) {
+                    if ($h.ContainsKey('Time') -and $h.ContainsKey('Price')) {
+                        $dt = [DateTime]::MinValue
+                        $timeStr = [string]$h.Time
+                        
+                        if ($timeStr -match '^\d{10,13}$') {
+                            if ($timeStr.Length -eq 13) { $dt = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$timeStr).LocalDateTime }
+                            else { $dt = [DateTimeOffset]::FromUnixTimeSeconds([long]$timeStr).LocalDateTime }
+                        } elseif ($timeStr -match '^\d{4}-\d{2}-\d{2}T') {
+                            $dt = [DateTime]::Parse($timeStr, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
+                        } else {
+                            try { $dt = [DateTime]::Parse($timeStr) } catch {}
+                        }
+                        
+                        if ($dt -ne [DateTime]::MinValue) {
+                            $history += @{ Time = $dt; Price = [double]$h.Price }
+                        }
+                    }
+                } elseif ($h -is [double] -or $h -is [int]) {
+                    $history += @{ Time = $now; Price = [double]$h }
+                }
             }
-            $history += @{ Time = $now; Price = $s.Price }
         }
 
-        # --- BUCKETING DATA ---
+        if ($history.Count -eq 0) {
+            $chartArea.AxisX.Minimum = $startTime.ToOADate()
+            $chartArea.AxisX.Maximum = $now.ToOADate()
+            return
+        }
+
+        # --- BUCKETING DATA (Untuk Line Chart) ---
         $buckets = @{}
         foreach ($pt in $history) {
             $t = [DateTime]$pt.Time
@@ -128,37 +146,44 @@ function Start-StockViewer {
         }
 
         $sortedKeys = $buckets.Keys | Sort-Object
+        $minPrice = [double]::MaxValue
+        $maxPrice = [double]::MinValue
+
         foreach ($key in $sortedKeys) {
             $prices = $buckets[$key]
-            $open = [double]$prices[0]
             $close = [double]$prices[$prices.Count - 1]
-            $high = ($prices | Measure-Object -Maximum).Maximum
-            $low = ($prices | Measure-Object -Minimum).Minimum
             
+            if ($close -lt $minPrice) { $minPrice = $close }
+            if ($close -gt $maxPrice) { $maxPrice = $close }
+
             $time = [DateTime]::new($key * ([TimeSpan]::TicksPerSecond * $bucketSec))
-            $series.Points.AddXY($time, $high, $low, $open, $close)
+            $series.Points.AddXY($time, $close)
         }
         
         # Set Batas X
         if (-not $Global:IsZoomed) {
-            $chartArea.AxisX.Minimum = $startTime.ToOADate()
-            $chartArea.AxisX.Maximum = $now.AddSeconds($bucketSec).ToOADate()
+            if ($series.Points.Count -gt 0) {
+                # Auto-Fit Sumbu X: Hanya menampilkan rentang data yang ada
+                $firstTime = [DateTime]::FromOADate($series.Points[0].XValue)
+                $lastTime = [DateTime]::FromOADate($series.Points[$series.Points.Count - 1].XValue)
+                
+                $chartArea.AxisX.Minimum = $firstTime.AddSeconds(-$bucketSec).ToOADate()
+                $chartArea.AxisX.Maximum = $lastTime.AddSeconds($bucketSec).ToOADate()
+            } else {
+                $chartArea.AxisX.Minimum = $startTime.ToOADate()
+                $chartArea.AxisX.Maximum = $now.ToOADate()
+            }
         }
 
-        # Set Batas Y
+        # Set Batas Y (Auto-Zoom persis seperti Dashboard)
         if ($series.Points.Count -gt 0) {
-            $min = 999999.0
-            $max = -999999.0
-            foreach ($pt in $series.Points) {
-                if ($pt.YValues[1] -lt $min) { $min = $pt.YValues[1] }
-                if ($pt.YValues[0] -gt $max) { $max = $pt.YValues[0] }
-            }
-            $margin = ($max - $min) * 0.1
+            $margin = ($maxPrice - $minPrice) * 0.2
             if ($margin -eq 0) { $margin = 1 }
             
             if (-not $Global:IsZoomed) {
-                $chartArea.AxisY.Minimum = $min - $margin
-                $chartArea.AxisY.Maximum = $max + $margin
+                $chartArea.AxisY.Minimum = $minPrice - $margin
+                $chartArea.AxisY.Maximum = $maxPrice + $margin
+                $chartArea.AxisY.Interval = [Math]::Max(1, [Math]::Round(($maxPrice - $minPrice) / 5))
             }
         }
     }
@@ -204,14 +229,7 @@ function Start-StockViewer {
     $timer.Interval = 2000
     $timer.Add_Tick({
         $Global:StockViewerData = Load-StockData
-        if ($null -ne $Global:SelectedStockView) {
-            foreach ($s in $Global:StockViewerData) {
-                if ($s.Ticker -eq $Global:SelectedStockView.Ticker) {
-                    $Global:SelectedStockView = $s
-                    break
-                }
-            }
-        }
+        if ($null -ne $Global:SelectedStockView) { foreach ($s in $Global:StockViewerData) { if ($s.Ticker -eq $Global:SelectedStockView.Ticker) { $Global:SelectedStockView = $s; break } } }
         Update-ViewerChart
     })
 
