@@ -78,14 +78,21 @@ function Save-GameData {
     }
 }
 
+$Global:StocksCache = $null
+$Global:StocksCacheTime = [DateTime]::MinValue
+
 function Load-StocksData {
+    if ($null -ne $Global:StocksCache -and ([DateTime]::Now - $Global:StocksCacheTime).TotalMilliseconds -lt 900) { return $Global:StocksCache }
     if (Test-Path $Global:StocksPath) {
         try {
             $fs = [System.IO.File]::Open($Global:StocksPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
             $reader = New-Object System.IO.StreamReader($fs)
             $raw = $reader.ReadToEnd()
             $reader.Close(); $fs.Close()
-            return $raw | ConvertFrom-Json
+            $parsed = $raw | ConvertFrom-Json
+            $Global:StocksCache = $parsed
+            $Global:StocksCacheTime = [DateTime]::Now
+            return $parsed
         } catch { return @() }
     }
     return @()
@@ -1097,10 +1104,10 @@ function Enter-QueueLock {
 
 function Process-WebQueue {
     if ($Global:ActiveProfileName -eq "" -or $null -eq $Global:GameState) { return }
-    $lockFs = $null
+    $toExecute = @()
+    $lockFs = Enter-QueueLock
     try {
         if (-not (Test-Path $Global:QueuePath)) { return }
-        $lockFs = Enter-QueueLock
         $fs = [System.IO.File]::Open($Global:QueuePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
         $reader = New-Object System.IO.StreamReader($fs)
         $raw = $reader.ReadToEnd()
@@ -1111,55 +1118,71 @@ function Process-WebQueue {
         $orders = @($script:collected)
         if ($orders.Count -eq 0) { return }
 
-        $mine = @()
+        $stocks = Load-StocksData
+        if ($stocks.Count -eq 0) { return }
+
+        $executeIds = @()
         foreach ($o in $orders) {
             if ($o.Action -ne "BUY") { continue }
             $oid = Get-OrderId $o
             if ($Global:ProcessedOrderIds -contains $oid) { continue }
-            if ($o.Profile -ieq $Global:ActiveProfileName) { $mine += $o }
+            if ($o.Profile -ieq $Global:ActiveProfileName) {
+                $qty = 0
+                try { $qty = [int]$o.Qty } catch { $qty = 0 }
+                $stock = $stocks | Where-Object { $_.Ticker -eq [string]$o.Ticker } | Select-Object -First 1
+                if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) {
+                    $Global:ProcessedOrderIds.Add($oid)
+                    Add-Receipt $oid "Failed" "Ticker/qty tidak valid"
+                    Write-Host "[WEB BELI] Order dibatalkan (ticker/qty tidak valid)" -ForegroundColor Yellow
+                    continue
+                }
+                $cost = $stock.Price * $qty
+                if ($Global:GameState.Player.Money -ge $cost) {
+                    $executeIds += $oid
+                    $toExecute += , @{ o = $o; qty = $qty }
+                } elseif (-not ($Global:QueueSeenIds -contains $oid)) {
+                    $Global:QueueSeenIds.Add($oid)
+                    Add-Receipt $oid "Held" "Uang belum cukup - order ditahan sampai uang cukup"
+                    Write-Host ("[WEB BELI] Uang belum cukup untuk {0} x{1}. Order ditahan." -f $o.Ticker, $qty) -ForegroundColor Yellow
+                }
+            }
             elseif (-not ($Global:QueueSeenIds -contains $oid)) {
                 $Global:QueueSeenIds.Add($oid)
                 Write-Host ("[WEB BELI] Order untuk profil '{0}' menunggu (GUI ini: '{1}')" -f $o.Profile, $Global:ActiveProfileName) -ForegroundColor DarkGray
             }
         }
-        if ($mine.Count -eq 0) { return }
 
-        $stocks = Load-StocksData
-        if ($stocks.Count -eq 0) { return }
-
-        foreach ($o in $mine) {
-            $oid = Get-OrderId $o
-            $qty = 0
-            try { $qty = [int]$o.Qty } catch { $qty = 0 }
-            $stock = $stocks | Where-Object { $_.Ticker -eq [string]$o.Ticker } | Select-Object -First 1
-            if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) {
-                $Global:ProcessedOrderIds.Add($oid)
-                Add-Receipt $oid "Failed" "Ticker/qty tidak valid"
-                Write-Host "[WEB BELI] Order dibatalkan (ticker/qty tidak valid)" -ForegroundColor Yellow
-                continue
+        if ($executeIds.Count -gt 0 -or $Global:ProcessedOrderIds.Count -gt 0) {
+            $remaining = @($orders | Where-Object { $executeIds -notcontains (Get-OrderId $_) -and -not ($Global:ProcessedOrderIds -contains (Get-OrderId $_)) })
+            Write-QueueSafe $remaining | Out-Null
+            if ($remaining.Count -eq 0 -and $Global:ProcessedOrderIds.Count -gt 0) {
+                $Global:ProcessedOrderIds.Clear()
+                $Global:QueueSeenIds.Clear()
             }
-            $cost = $stock.Price * $qty
-            if ($Global:GameState.Player.Money -ge $cost) {
-                if (Do-Buy $qty $o.Ticker) {
-                    $Global:ProcessedOrderIds.Add($oid)
-                    Add-Receipt $oid "Executed" "Beli tercatat di dashboard"
-                    Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $qty, $o.Ticker) -ForegroundColor Green
-                }
-            } elseif (-not ($Global:QueueSeenIds -contains $oid)) {
-                $Global:QueueSeenIds.Add($oid)
-                Add-Receipt $oid "Held" "Uang belum cukup - order ditahan sampai uang cukup"
-                Write-Host ("[WEB BELI] Uang belum cukup untuk {0} x{1}. Order ditahan." -f $o.Ticker, $qty) -ForegroundColor Yellow
-            }
-        }
-
-        $remaining = @($orders | Where-Object { -not ($Global:ProcessedOrderIds -contains (Get-OrderId $_)) })
-        if ($remaining.Count -lt $orders.Count) { Write-QueueSafe $remaining | Out-Null }
-        if ($remaining.Count -eq 0 -and $Global:ProcessedOrderIds.Count -gt 0) {
-            $Global:ProcessedOrderIds.Clear()
-            $Global:QueueSeenIds.Clear()
         }
     } catch {}
     finally { if ($lockFs) { try { $lockFs.Close() } catch {} } }
+
+    foreach ($x in $toExecute) {
+        $o = $x.o
+        $oid = Get-OrderId $o
+        if (Do-Buy $x.qty $o.Ticker) {
+            $Global:ProcessedOrderIds.Add($oid)
+            Add-Receipt $oid "Executed" "Beli tercatat di dashboard"
+            Write-Host ("[WEB BELI] Profil '{0}' membeli {1} lembar {2}" -f $Global:ActiveProfileName, $x.qty, $o.Ticker) -ForegroundColor Green
+        } else {
+            $lockFs2 = Enter-QueueLock
+            try {
+                $q = @()
+                if (Test-Path $Global:QueuePath) {
+                    $rawQ = [System.IO.File]::ReadAllText($Global:QueuePath)
+                    if (-not [string]::IsNullOrWhiteSpace($rawQ)) { $q = @($rawQ -replace "^\uFEFF", "" | ConvertFrom-Json) }
+                }
+                $q += $o
+                ConvertTo-Json -InputObject @($q) -Depth 5 -Compress | Set-Content $Global:QueuePath -Encoding UTF8
+            } catch {} finally { if ($lockFs2) { try { $lockFs2.Close() } catch {} } }
+        }
+    }
 }
 
 function Collect-Orders($node) {
