@@ -6,64 +6,309 @@
     <title>Admin Dashboard - ClickTycoonIdle</title>
     <style>
         * { box-sizing: border-box; }
-        body { background-color: #1e1e1e; color: #fff; font-family: Consolas, monospace; padding: 20px; }
-        h1 { color: #00bfff; border-bottom: 2px solid #00bfff; padding-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 10px; border: 1px solid #444; text-align: left; }
+        body { background-color: #1e1e1e; color: #fff; font-family: Consolas, monospace; padding: 20px; margin: 0; }
+        h1 { color: #00bfff; border-bottom: 2px solid #00bfff; padding-bottom: 10px; font-size: 1.3em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border: 1px solid #444; text-align: left; word-break: break-word; }
         th { background-color: #333; color: #0f0; }
         tr:nth-child(even) { background-color: #2a2a2a; }
         button { padding: 6px 12px; cursor: pointer; border: none; border-radius: 3px; font-weight: bold; }
         .btn-accept { background-color: #4caf50; color: white; }
         .btn-deny { background-color: #f44336; color: white; }
-        .pairing-code { color: yellow; font-size: 1.5em; font-weight: bold; }
-        @media (max-width: 600px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.8em; } }
+        .btn-warn { background-color: #ff9800; color: #000; }
+        .btn-remove { background-color: #757575; color: white; }
+        .pairing-code { color: yellow; font-size: 1.5em; font-weight: bold; letter-spacing: 4px; }
+        .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.85em; font-weight: bold; }
+        .badge-allowed { background: #14501a; color: #7dff8a; }
+        .badge-denied { background: #5a1414; color: #ff8a7d; }
+        .up { color: #4caf50; } .down { color: #f44336; }
+        .muted { color: #888; }
+        #topbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+        .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 15px 0; }
+        .tabs button { background: #2a2a2a; color: #aaa; }
+        .tabs button.active { background: #00bfff; color: #000; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .card { background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        #loginScreen { display: none; max-width: 400px; margin: 15vh auto 0; }
+        #loginScreen input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #444; border-radius: 5px; background: #2a2a2a; color: #fff; font-size: 1em; }
+        #loginScreen button { width: 100%; padding: 12px; background: #00bfff; color: #000; }
+        #loginScreen h1 { margin-bottom: 10px; }
+        #app.hidden { display: none; }
+        .empty { text-align: center; color: #888; padding: 15px; }
+        @media (max-width: 600px) { body { padding: 10px; } th, td { padding: 6px; font-size: 0.8em; } .pairing-code { font-size: 1.2em; } }
     </style>
 </head>
 <body>
-    <h1>Manajemen Perangkat (API)</h1>
-    <p>Kode Pairing Saat Ini: <span class="pairing-code" id="pairCode">-</span></p>
-    <table>
-        <thead><tr><th>Device ID</th><th>Nama</th><th>Status</th><th>Token</th><th>Aksi</th></tr></thead>
-        <tbody id="deviceTable"></tbody>
-    </table>
+    <div id="loginScreen">
+        <h1>Admin Dashboard</h1>
+        <p class="muted">Masukkan Admin Key (lihat file <code>Data\admin_key.txt</code> di PC server, atau output console saat server pertama kali dijalankan).</p>
+        <input type="password" id="adminKeyInput" placeholder="Admin Key" autocomplete="off">
+        <button onclick="doLogin()">Masuk</button>
+        <p id="loginError" style="color:#f44336;"></p>
+    </div>
+
+    <div id="app" class="hidden">
+        <h1>Manajemen Perangkat (API)</h1>
+        <div id="topbar">
+            <span>Kode Pairing Saat Ini: <span class="pairing-code" id="pairCode">-</span></span>
+            <span>
+                <button class="btn-warn" onclick="regenPairing()">Kode Baru</button>
+                <button class="btn-remove" onclick="logout()">Keluar</button>
+            </span>
+        </div>
+
+        <div class="tabs">
+            <button id="tab-devices" class="active" onclick="setTab('devices')">Perangkat</button>
+            <button id="tab-stocks" onclick="setTab('stocks')">Pasar Saham</button>
+            <button id="tab-profiles" onclick="setTab('profiles')">Profil</button>
+            <button id="tab-queue" onclick="setTab('queue')">Antrian Beli</button>
+        </div>
+
+        <div id="panel-devices" class="panel active">
+            <table>
+                <thead><tr><th>Device ID</th><th>Nama</th><th>Status</th><th>Profil</th><th>Aksi</th></tr></thead>
+                <tbody id="deviceTable"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-stocks" class="panel">
+            <table>
+                <thead><tr><th>Ticker</th><th>Nama</th><th>Harga</th><th>Perubahan</th></tr></thead>
+                <tbody id="stockTable"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-profiles" class="panel">
+            <table>
+                <thead><tr><th>Nama Profil</th><th>Uang</th><th>Level Clicker</th></tr></thead>
+                <tbody id="profileTable"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-queue" class="panel">
+            <table>
+                <thead><tr><th>Aksi</th><th>Ticker</th><th>Qty</th><th>Profil</th><th>Waktu</th></tr></thead>
+                <tbody id="queueTable"></tbody>
+            </table>
+        </div>
+    </div>
+
     <script>
+        let activeTab = 'devices';
+
+        function getKey() { return localStorage.getItem('adminKey') || ''; }
+
+        async function api(path, opts = {}) {
+            const res = await fetch(path, Object.assign({}, opts, {
+                headers: Object.assign({ 'Content-Type': 'application/json', 'X-Admin-Key': getKey() }, opts.headers || {})
+            }));
+            if (res.status === 401) { showLogin('Sesi tidak valid. Masukkan Admin Key lagi.'); throw new Error('unauthorized'); }
+            const text = await res.text();
+            try { return text ? JSON.parse(text) : null; } catch (e) { return null; }
+        }
+
+        function showLogin(msg) {
+            localStorage.removeItem('adminKey');
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('loginError').textContent = msg || '';
+        }
+
+        function showApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('app').classList.remove('hidden');
+            refresh();
+        }
+
+        async function doLogin() {
+            const key = document.getElementById('adminKeyInput').value.trim();
+            if (!key) { document.getElementById('loginError').textContent = 'Admin Key tidak boleh kosong'; return; }
+            localStorage.setItem('adminKey', key);
+            try {
+                const res = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key })
+                });
+                if (res.ok) { document.getElementById('loginError').textContent = ''; showApp(); }
+                else { showLogin('Admin Key salah.'); }
+            } catch (e) {
+                localStorage.removeItem('adminKey');
+                document.getElementById('loginError').textContent = 'Gagal terhubung ke server.';
+            }
+        }
+
+        function logout() { showLogin(''); }
+
+        function setTab(name) {
+            activeTab = name;
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+            document.getElementById('panel-' + name).classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+            refresh();
+        }
+
+        function toArray(data) {
+            if (Array.isArray(data)) return data;
+            if (data && typeof data === 'object') return [data];
+            return [];
+        }
+
+        function td(text) { const c = document.createElement('td'); c.textContent = text == null ? '-' : String(text); return c; }
+
+        async function loadPairingCode() {
+            try {
+                const data = await api('/api/admin/pairing');
+                document.getElementById('pairCode').textContent = data.code;
+            } catch (e) {}
+        }
+
+        async function regenPairing() {
+            if (!confirm('Buat kode pairing baru? Kode lama tidak berlaku.')) return;
+            try {
+                const data = await api('/api/admin/regenerate_pairing', { method: 'POST', body: '{}' });
+                document.getElementById('pairCode').textContent = data.code;
+            } catch (e) {}
+        }
+
         async function loadDevices() {
-            const res = await fetch('/api/admin/devices');
-            const data = await res.json();
+            const devs = toArray(await api('/api/admin/devices'));
             const tbody = document.getElementById('deviceTable');
             tbody.innerHTML = '';
-            if (Object.keys(data).length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Belum ada perangkat terhubung.</td></tr>';
+            if (devs.length === 0) {
+                const tr = document.createElement('tr');
+                const c = document.createElement('td'); c.colSpan = 5; c.className = 'empty';
+                c.textContent = 'Belum ada perangkat terhubung.';
+                tr.appendChild(c); tbody.appendChild(tr);
                 return;
             }
-            for (const [id, dev] of Object.entries(data)) {
+            devs.forEach(dev => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${id}</td>
-                    <td>${dev.Name}</td>
-                    <td style="color:${dev.Status==='Allowed'?'#0f0':'#f00'}">${dev.Status}</td>
-                    <td style="font-size:0.8em">${dev.Token.substring(0,8)}...</td>
-                    <td>
-                        <button class="btn-accept" onclick="toggle('${id}','Allowed')">Izinkan</button>
-                        <button class="btn-deny" onclick="toggle('${id}','Denied')">Cabut</button>
-                    </td>
-                `;
+                tr.appendChild(td(dev.id));
+                tr.appendChild(td(dev.name));
+                const st = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = 'badge ' + (dev.status === 'Allowed' ? 'badge-allowed' : 'badge-denied');
+                badge.textContent = dev.status;
+                st.appendChild(badge); tr.appendChild(st);
+                tr.appendChild(td(dev.profile || '-'));
+                const act = document.createElement('td');
+                const bAllow = document.createElement('button');
+                bAllow.className = 'btn-accept'; bAllow.textContent = 'Izinkan';
+                bAllow.onclick = () => toggle(dev.id, 'Allowed');
+                const bDeny = document.createElement('button');
+                bDeny.className = 'btn-deny'; bDeny.textContent = 'Cabut';
+                bDeny.onclick = () => toggle(dev.id, 'Denied');
+                const bDel = document.createElement('button');
+                bDel.className = 'btn-remove'; bDel.textContent = 'Hapus';
+                bDel.onclick = () => removeDevice(dev.id);
+                act.appendChild(bAllow); act.appendChild(document.createTextNode(' '));
+                act.appendChild(bDeny); act.appendChild(document.createTextNode(' '));
+                act.appendChild(bDel);
+                tr.appendChild(act);
                 tbody.appendChild(tr);
+            });
+        }
+
+        async function toggle(id, status) {
+            try { await api('/api/admin/toggle', { method: 'POST', body: JSON.stringify({ id: id, status: status }) }); loadDevices(); } catch (e) {}
+        }
+
+        async function removeDevice(id) {
+            if (!confirm('Hapus perangkat ini? Token-nya langsung tidak berlaku.')) return;
+            try { await api('/api/admin/remove', { method: 'POST', body: JSON.stringify({ id: id }) }); loadDevices(); } catch (e) {}
+        }
+
+        async function loadStocks() {
+            const stocks = toArray(await api('/api/admin/stocks'));
+            const tbody = document.getElementById('stockTable');
+            tbody.innerHTML = '';
+            if (stocks.length === 0) {
+                const tr = document.createElement('tr');
+                const c = document.createElement('td'); c.colSpan = 4; c.className = 'empty';
+                c.textContent = 'Data pasar belum tersedia.';
+                tr.appendChild(c); tbody.appendChild(tr);
+                return;
+            }
+            stocks.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.appendChild(td(s.ticker));
+                tr.appendChild(td(s.name));
+                tr.appendChild(td('Rp ' + Number(s.price || 0).toLocaleString('id-ID', { minimumFractionDigits: 2 })));
+                const chg = document.createElement('td');
+                const val = Number(s.change || 0);
+                chg.textContent = (val > 0 ? '+' : '') + val.toFixed(2) + '%';
+                chg.className = val > 0 ? 'up' : (val < 0 ? 'down' : '');
+                tr.appendChild(chg);
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function loadProfiles() {
+            const profiles = toArray(await api('/api/admin/profiles'));
+            const tbody = document.getElementById('profileTable');
+            tbody.innerHTML = '';
+            if (profiles.length === 0) {
+                const tr = document.createElement('tr');
+                const c = document.createElement('td'); c.colSpan = 3; c.className = 'empty';
+                c.textContent = 'Belum ada profil.';
+                tr.appendChild(c); tbody.appendChild(tr);
+                return;
+            }
+            profiles.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.appendChild(td(p.name));
+                tr.appendChild(td('Rp ' + Number(p.money || 0).toLocaleString('id-ID')));
+                tr.appendChild(td('Lv. ' + (p.level || 1)));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function collectOrders(node, out) {
+            if (Array.isArray(node)) { node.forEach(n => collectOrders(n, out)); return; }
+            if (node && typeof node === 'object') {
+                if (node.Ticker !== undefined) { out.push(node); return; }
+                Object.values(node).forEach(v => collectOrders(v, out));
             }
         }
-        async function toggle(id, status) {
-            await fetch('/api/admin/toggle', { method: 'POST', body: JSON.stringify({ id: id, status: status }) });
-            loadDevices();
+
+        async function loadQueue() {
+            let raw = [];
+            try { raw = await api('/api/admin/queue'); } catch (e) { raw = []; }
+            const orders = [];
+            collectOrders(raw, orders);
+            const tbody = document.getElementById('queueTable');
+            tbody.innerHTML = '';
+            if (orders.length === 0) {
+                const tr = document.createElement('tr');
+                const c = document.createElement('td'); c.colSpan = 5; c.className = 'empty';
+                c.textContent = 'Antrian kosong.';
+                tr.appendChild(c); tbody.appendChild(tr);
+                return;
+            }
+            orders.forEach(o => {
+                const tr = document.createElement('tr');
+                tr.appendChild(td(o.Action || '-'));
+                tr.appendChild(td(o.Ticker || '-'));
+                tr.appendChild(td(o.Qty != null ? o.Qty : '-'));
+                tr.appendChild(td(o.Profile || '-'));
+                tr.appendChild(td(o.Time || '-'));
+                tbody.appendChild(tr);
+            });
         }
-        async function loadPairingCode() {
-            const res = await fetch('/api/admin/pairing');
-            const data = await res.json();
-            document.getElementById('pairCode').innerText = data.code;
+
+        function refresh() {
+            if (!getKey()) return;
+            if (activeTab === 'devices') { loadDevices(); loadPairingCode(); }
+            else if (activeTab === 'stocks') loadStocks();
+            else if (activeTab === 'profiles') loadProfiles();
+            else if (activeTab === 'queue') loadQueue();
         }
-        setInterval(loadDevices, 5000);
-        setInterval(loadPairingCode, 5000);
-        loadDevices();
-        loadPairingCode();
+
+        if (getKey()) { showApp(); } else { showLogin(''); }
+        setInterval(refresh, 5000);
     </script>
 </body>
 </html>
