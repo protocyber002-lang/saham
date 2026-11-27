@@ -1079,6 +1079,8 @@ function Add-Receipt($id, $status, $message) {
         $cutoff = [DateTime]::UtcNow.AddMinutes(-15).ToString('o')
         $kept = @()
         foreach ($r in $receipts) {
+            $rId = $r.PSObject.Properties['Id']
+            if ($null -ne $rId -and $rId.Value -eq $id) { continue }
             $tProp = $r.PSObject.Properties['Time']
             if ($null -ne $tProp -and $tProp.Value -and ([string]$tProp.Value) -ge $cutoff) { $kept += $r }
         }
