@@ -16,4 +16,5 @@ Data/devices.json
 Data/pairing.txt
 
 # Output sementara
-tree_output.txtData/receipts.json
+tree_output.txt
+Data/receipts.json
