@@ -42,6 +42,10 @@ $Global:QueueLockPath = Join-Path $Global:RootPath "Data\queue.lock"
 $Global:ProcessedOrderIds = New-Object System.Collections.Generic.List[string]
 $Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
 $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
+$Global:WorkConfigPath = Join-Path $Global:RootPath "Data\work_config.json"
+$Global:WorkCfgStamp = 0
+$Global:WorkCfgCheck = 0
+if (Test-Path $Global:WorkConfigPath) { $Global:WorkCfgStamp = (Get-Item $Global:WorkConfigPath).LastWriteTimeUtc.Ticks }
 $Global:ProfilePath = ""
 $Global:ActiveProfileName = ""
 $Global:ProfileLockPath = ""
@@ -2614,6 +2618,22 @@ $timer.Add_Tick({
         Ensure-Contracts
         $Global:EngineCheckCounter++
         if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
+        $Global:WorkCfgCheck++
+        if ($Global:WorkCfgCheck -ge 3) {
+            $Global:WorkCfgCheck = 0
+            try {
+                if (Test-Path $Global:WorkConfigPath) {
+                    $mt = (Get-Item $Global:WorkConfigPath).LastWriteTimeUtc.Ticks
+                    if ($mt -ne $Global:WorkCfgStamp) {
+                        $Global:WorkCfgStamp = $mt
+                        if (Get-Command Import-WorkConfigOverride -ErrorAction SilentlyContinue) {
+                            [void](Import-WorkConfigOverride -Target $Global:Config -Path $Global:WorkConfigPath)
+                            Write-Host "[ADMIN] work_config.json diperbarui - pengaturan tab kerja dimuat ulang" -ForegroundColor Cyan
+                        }
+                    }
+                } else { $Global:WorkCfgStamp = 0 }
+            } catch { }
+        }
     }
 })
 
