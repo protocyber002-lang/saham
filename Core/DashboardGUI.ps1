@@ -54,7 +54,7 @@ $Global:ZoomLevel = 1.0
 # Load Config
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
-else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0 } }
+else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseIncome=1.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0 } }
 
 # --- KUNCI PROFIL (sama dengan TUI: satu profil satu proses) ---
 function Get-LockOwnerMessage($name, $lockPath) {
@@ -678,17 +678,21 @@ $btnMenuStat = Create-ActionButton "0. Statistik Kerja" 10 10 180 50 $ColorSucce
 $btnMenuMath = Create-ActionButton "1. Matematika" 10 70 180 50 $ColorAccent
 $btnMenuType = Create-ActionButton "2. Ketik Ulang" 10 130 180 50 $ColorAccent
 $btnMenuBuild = Create-ActionButton "3. Developer Bangunan" 10 190 180 50 $ColorAccent
+$btnMenuContract = Create-ActionButton "4. Kontrak Harian" 10 255 180 50 $ColorAccent
+$btnMenuWorker = Create-ActionButton "5. Pekerja" 10 315 180 50 $ColorAccent
 $lblMenuCash = New-Object System.Windows.Forms.Label
 $lblMenuCash.Text = "Cash: Rp 0"
 $lblMenuCash.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblMenuCash.ForeColor = $ColorSuccess
-$lblMenuCash.Location = New-Object System.Drawing.Point(10, 255)
+$lblMenuCash.Location = New-Object System.Drawing.Point(10, 375)
 $lblMenuCash.AutoSize = $true
 $panelMenu.Controls.Add($lblMenuCash)
 $panelMenu.Controls.Add($btnMenuStat)
 $panelMenu.Controls.Add($btnMenuMath)
 $panelMenu.Controls.Add($btnMenuType)
 $panelMenu.Controls.Add($btnMenuBuild)
+$panelMenu.Controls.Add($btnMenuContract)
+$panelMenu.Controls.Add($btnMenuWorker)
 
 # --- PANEL KANAN: KONTEN ---
 $panelContent = New-Object System.Windows.Forms.Panel
@@ -738,6 +742,88 @@ $lblStatTotal.ForeColor = [System.Drawing.Color]::Orange
 $lblStatTotal.Location = New-Object System.Drawing.Point(20, 220)
 $lblStatTotal.AutoSize = $true
 $panelStat.Controls.Add($lblStatTotal)
+
+# --- SUB-PANEL KONTRAK HARIAN ---
+$panelContract = New-Object System.Windows.Forms.Panel
+$panelContract.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelContract.Visible = $false
+$panelContent.Controls.Add($panelContract)
+
+$lblContractTitle = New-Object System.Windows.Forms.Label
+$lblContractTitle.Text = "Kontrak Harian"
+$lblContractTitle.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$lblContractTitle.ForeColor = $ColorSuccess
+$lblContractTitle.Location = New-Object System.Drawing.Point(20, 30)
+$lblContractTitle.AutoSize = $true
+$panelContract.Controls.Add($lblContractTitle)
+
+$lblContract1 = New-Object System.Windows.Forms.Label
+$lblContract1.Text = "-"
+$lblContract1.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblContract1.Location = New-Object System.Drawing.Point(20, 100)
+$lblContract1.AutoSize = $true
+$panelContract.Controls.Add($lblContract1)
+
+$btnClaim1 = Create-ActionButton "Klaim" 560 96 150 35 $ColorSuccess
+$panelContract.Controls.Add($btnClaim1)
+
+$lblContract2 = New-Object System.Windows.Forms.Label
+$lblContract2.Text = "-"
+$lblContract2.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblContract2.Location = New-Object System.Drawing.Point(20, 140)
+$lblContract2.AutoSize = $true
+$panelContract.Controls.Add($lblContract2)
+
+$btnClaim2 = Create-ActionButton "Klaim" 560 136 150 35 $ColorSuccess
+$panelContract.Controls.Add($btnClaim2)
+
+$lblContract3 = New-Object System.Windows.Forms.Label
+$lblContract3.Text = "-"
+$lblContract3.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblContract3.Location = New-Object System.Drawing.Point(20, 180)
+$lblContract3.AutoSize = $true
+$panelContract.Controls.Add($lblContract3)
+
+$btnClaim3 = Create-ActionButton "Klaim" 560 176 150 35 $ColorSuccess
+$panelContract.Controls.Add($btnClaim3)
+
+$lblContractNote = New-Object System.Windows.Forms.Label
+$lblContractNote.Text = "Kontrak baru tiap hari (UTC). Progres dihitung dari aktivitas kerja hari ini."
+$lblContractNote.ForeColor = [System.Drawing.Color]::Gray
+$lblContractNote.Location = New-Object System.Drawing.Point(20, 230)
+$lblContractNote.AutoSize = $true
+$panelContract.Controls.Add($lblContractNote)
+
+# --- SUB-PANEL PEKERJA ---
+$panelWorker = New-Object System.Windows.Forms.Panel
+$panelWorker.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelWorker.Visible = $false
+$panelContent.Controls.Add($panelWorker)
+
+$lblWorkerTitle = New-Object System.Windows.Forms.Label
+$lblWorkerTitle.Text = "Pekerja"
+$lblWorkerTitle.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$lblWorkerTitle.ForeColor = $ColorSuccess
+$lblWorkerTitle.Location = New-Object System.Drawing.Point(20, 30)
+$lblWorkerTitle.AutoSize = $true
+$panelWorker.Controls.Add($lblWorkerTitle)
+
+$lblWorkerInfo = New-Object System.Windows.Forms.Label
+$lblWorkerInfo.Text = "Pekerja: 0"
+$lblWorkerInfo.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblWorkerInfo.Location = New-Object System.Drawing.Point(20, 100)
+$lblWorkerInfo.AutoSize = $true
+$panelWorker.Controls.Add($lblWorkerInfo)
+
+$btnWorkerHire = Create-ActionButton "Rekrut Pekerja" 20 140 260 45 $ColorAccent
+$panelWorker.Controls.Add($btnWorkerHire)
+
+$lblWorkerNote = New-Object System.Windows.Forms.Label
+$lblWorkerNote.Text = "XP naik dari aktivitas kerja (soal benar, ketik selesai, rumah dibangun). Income pekerja tidak terpengaruh buff saham."
+$lblWorkerNote.ForeColor = [System.Drawing.Color]::Gray
+$lblWorkerNote.Location = New-Object System.Drawing.Point(20, 200)
+$lblWorkerNote.AutoSize = $true
+$panelWorker.Controls.Add($lblWorkerNote)
 
 # --- SUB-PANEL MATEMATIKA ---
 $panelMath = New-Object System.Windows.Forms.Panel
@@ -836,6 +922,18 @@ $btnBuildSell = Create-ActionButton "Jual Terpilih" 20 365 200 40 $ColorSuccess
 $btnBuildSell.Enabled = $false
 $panelBuild.Controls.Add($btnBuildSell)
 
+$btnBuildAuction = Create-ActionButton "Lelang Terpilih" 240 365 200 40 $ColorAccent
+$btnBuildAuction.Enabled = $false
+$panelBuild.Controls.Add($btnBuildAuction)
+
+$lblAuction = New-Object System.Windows.Forms.Label
+$lblAuction.Text = "Lelang: tidak aktif"
+$lblAuction.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$lblAuction.ForeColor = [System.Drawing.Color]::Gray
+$lblAuction.Location = New-Object System.Drawing.Point(460, 375)
+$lblAuction.AutoSize = $true
+$panelBuild.Controls.Add($lblAuction)
+
 # --- LOGIKA TAB KERJA ---
 $Global:MathCurrentAnswer = 0
 $Global:MathStartTime = $null
@@ -846,6 +944,8 @@ function Show-WorkPanel($panel) {
     $panelMath.Visible = $false
     $panelType.Visible = $false
     $panelBuild.Visible = $false
+    $panelContract.Visible = $false
+    $panelWorker.Visible = $false
     $panel.Visible = $true
 }
 
@@ -866,7 +966,166 @@ function Add-WorkStat([string]$key, [double]$delta) {
     $v = $ws.PSObject.Properties[$key]
     if ($null -ne $v) { try { $cur = [double]$v.Value } catch { $cur = 0.0 } }
     $ws | Add-Member -MemberType NoteProperty -Name $key -Value ($cur + $delta) -Force
+    if ($key -eq 'MathCorrect' -or $key -eq 'TypeDone' -or $key -eq 'HouseBuilt') {
+        Add-ContractProgress $key $delta
+        if ($key -eq 'HouseBuilt') { Add-WorkerXp (2.0 * $delta) } else { Add-WorkerXp $delta }
+    }
 }
+
+function Get-Cfg([string]$key, [double]$def) {
+    try { if ($Global:Config.ContainsKey($key)) { return [double]$Global:Config[$key] } } catch {}
+    return $def
+}
+
+function Get-UtcDateStr { return [DateTime]::UtcNow.ToString("yyyy-MM-dd") }
+
+function Get-Contracts {
+    if ($null -eq $Global:GameState.PSObject.Properties['Contracts'] -or $null -eq $Global:GameState.Contracts) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "Contracts" -Value ([PSCustomObject]@{ Date = ""; M1 = $null; M2 = $null; M3 = $null }) -Force
+    }
+    return $Global:GameState.Contracts
+}
+
+function New-Contract([string]$type, [int]$target, [double]$rewardMult) {
+    return [PSCustomObject]@{ Type = $type; Target = $target; Progress = 0; Claimed = $false; RewardMult = $rewardMult }
+}
+
+function Ensure-Contracts {
+    $c = Get-Contracts
+    $today = Get-UtcDateStr
+    if ([string]$c.Date -eq $today) { return }
+    $pool = @(
+        @('MathCorrect', 10, 1.0), @('MathCorrect', 15, 1.5),
+        @('TypeDone', 3, 1.5), @('TypeDone', 5, 2.0),
+        @('HouseBuilt', 2, 2.0), @('HouseBuilt', 3, 2.5)
+    )
+    $seed = ([DateTime]::UtcNow.Date - [DateTime]"2026-01-01").Days
+    $c | Add-Member -MemberType NoteProperty -Name Date -Value $today -Force
+    for ($i = 1; $i -le 3; $i++) {
+        $def = $pool[($seed + ($i - 1) * 2) % $pool.Count]
+        $c.PSObject.Properties[("M" + $i)].Value = (New-Contract $def[0] $def[1] $def[2])
+    }
+}
+
+function Add-ContractProgress([string]$key, [double]$delta) {
+    Ensure-Contracts
+    $c = Get-Contracts
+    for ($i = 1; $i -le 3; $i++) {
+        $m = $c.PSObject.Properties[("M" + $i)].Value
+        if ($null -eq $m -or $m.Claimed) { continue }
+        if ([string]$m.Type -eq $key) {
+            $m | Add-Member -MemberType NoteProperty -Name Progress -Value (([double]$m.Progress) + $delta) -Force
+        }
+    }
+}
+
+function Get-ContractReward($m) {
+    return (Get-Cfg 'ContractRewardBase' 5000.0) * [double]$m.RewardMult
+}
+
+function Claim-Contract([int]$idx) {
+    $c = Get-Contracts
+    $m = $c.PSObject.Properties[("M" + $idx)].Value
+    if ($null -eq $m -or $m.Claimed -or $m.Progress -lt $m.Target) { return }
+    $reward = Get-ContractReward $m
+    $Global:GameState.Player.Money += $reward
+    $m | Add-Member -MemberType NoteProperty -Name Claimed -Value $true -Force
+    Add-WorkStat 'ContractReward' $reward
+    Update-ContractsUI
+    Update-WorkStatsUI
+    Update-AllUI
+}
+
+function Update-ContractsUI {
+    if ($null -eq $Global:GameState) { return }
+    Ensure-Contracts
+    $c = Get-Contracts
+    for ($i = 1; $i -le 3; $i++) {
+        $m = $c.PSObject.Properties[("M" + $i)].Value
+        $lbl = Get-Variable -Name ("lblContract" + $i) -ValueOnly
+        $btn = Get-Variable -Name ("btnClaim" + $i) -ValueOnly
+        $desc = switch ([string]$m.Type) {
+            'MathCorrect' { "Jawab soal matematika" }
+            'TypeDone' { "Selesaikan Ketik Ulang" }
+            default { "Bangun rumah" }
+        }
+        $lbl.Text = "{0}: {1}/{2}" -f $desc, [int]$m.Progress, $m.Target
+        $reward = Get-ContractReward $m
+        if ($m.Claimed) {
+            $lbl.ForeColor = [System.Drawing.Color]::Gray
+            $btn.Text = "Selesai"
+            $btn.Enabled = $false
+        } elseif ($m.Progress -ge $m.Target) {
+            $lbl.ForeColor = $ColorSuccess
+            $btn.Text = "Klaim Rp {0:N0}" -f $reward
+            $btn.Enabled = $true
+        } else {
+            $lbl.ForeColor = $ColorText
+            $btn.Text = "Klaim Rp {0:N0}" -f $reward
+            $btn.Enabled = $false
+        }
+    }
+}
+
+function Get-Workers {
+    if ($null -eq $Global:GameState.PSObject.Properties['Workers'] -or $null -eq $Global:GameState.Workers) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "Workers" -Value ([PSCustomObject]@{ Count = 0; Xp = 0.0 }) -Force
+    }
+    return $Global:GameState.Workers
+}
+
+function Add-WorkerXp([double]$amount) {
+    $w = Get-Workers
+    $w | Add-Member -MemberType NoteProperty -Name Xp -Value (([double]$w.Xp) + $amount) -Force
+}
+
+function Get-WorkerLevel {
+    $w = Get-Workers
+    $xpPer = (Get-Cfg 'WorkerXpPerLevel' 10.0)
+    if ($xpPer -le 0) { $xpPer = 10.0 }
+    return ([int][Math]::Floor(([double]$w.Xp) / $xpPer) + 1)
+}
+
+function Get-WorkerRate {
+    $w = Get-Workers
+    if ([int]$w.Count -le 0) { return 0.0 }
+    return ([int]$w.Count) * (Get-Cfg 'WorkerBaseIncome' 1.0) * (Get-WorkerLevel)
+}
+
+function Get-WorkerHireCost {
+    $w = Get-Workers
+    return (Get-Cfg 'WorkerBaseCost' 25000.0) * [Math]::Pow((Get-Cfg 'WorkerCostGrowth' 1.35), [int]$w.Count)
+}
+
+function Update-WorkerUI {
+    if ($null -eq $Global:GameState) { return }
+    $w = Get-Workers
+    $lvl = Get-WorkerLevel
+    $xpPer = (Get-Cfg 'WorkerXpPerLevel' 10.0)
+    if ($xpPer -le 0) { $xpPer = 10.0 }
+    $xpInLvl = ([double]$w.Xp) - (($lvl - 1) * $xpPer)
+    $lblWorkerInfo.Text = "Pekerja: {0} | Level {1} | XP {2:N0}/{3:N0} | Income: Rp {4:N2}/dtk" -f [int]$w.Count, $lvl, $xpInLvl, $xpPer, (Get-WorkerRate)
+    $cost = Get-WorkerHireCost
+    $btnWorkerHire.Text = "Rekrut Pekerja (Rp {0:N0})" -f $cost
+    $btnWorkerHire.Enabled = ([double]$Global:GameState.Player.Money -ge $cost)
+}
+
+$btnWorkerHire.Add_Click({
+    $cost = Get-WorkerHireCost
+    if ([double]$Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
+        return
+    }
+    $Global:GameState.Player.Money -= $cost
+    $w = Get-Workers
+    $w | Add-Member -MemberType NoteProperty -Name Count -Value (([int]$w.Count) + 1) -Force
+    Update-WorkerUI
+    Update-AllUI
+})
+
+$btnClaim1.Add_Click({ Claim-Contract 1 })
+$btnClaim2.Add_Click({ Claim-Contract 2 })
+$btnClaim3.Add_Click({ Claim-Contract 3 })
 
 function Update-WorkStatsUI {
     if ($null -eq $Global:GameState) { return }
@@ -876,7 +1135,7 @@ function Update-WorkStatsUI {
     if ($done -gt 0) { $avgSim = (Get-WorkStat 'TypeSimilaritySum') / $done * 100 }
     $lblStatType.Text = ("Ketik Ulang: {0} selesai | Kemiripan rata-rata {1:N0}% | Cash Rp {2:N0}" -f $done, $avgSim, (Get-WorkStat 'TypeCash'))
     $lblStatBuild.Text = ("Bangunan: {0} dibangun, {1} terjual | Belanja Rp {2:N0} | Pendapatan jual Rp {3:N0}" -f (Get-WorkStat 'HouseBuilt'), (Get-WorkStat 'HouseSold'), (Get-WorkStat 'HouseSpend'), (Get-WorkStat 'HouseIncome'))
-    $total = (Get-WorkStat 'MathReward') + (Get-WorkStat 'TypeCash') + (Get-WorkStat 'HouseIncome')
+    $total = (Get-WorkStat 'MathReward') + (Get-WorkStat 'TypeCash') + (Get-WorkStat 'HouseIncome') + (Get-WorkStat 'ContractReward')
     $lblStatTotal.Text = "Total penghasilan kerja: Rp {0:N0}" -f $total
 }
 
@@ -884,6 +1143,8 @@ $btnMenuStat.Add_Click({ Show-WorkPanel $panelStat; Update-WorkStatsUI })
 $btnMenuMath.Add_Click({ Show-WorkPanel $panelMath; Generate-MathQuestion })
 $btnMenuType.Add_Click({ Show-WorkPanel $panelType; Generate-TypeQuestion })
 $btnMenuBuild.Add_Click({ Show-WorkPanel $panelBuild; Update-BuildUI })
+$btnMenuContract.Add_Click({ Show-WorkPanel $panelContract; Update-ContractsUI })
+$btnMenuWorker.Add_Click({ Show-WorkPanel $panelWorker; Update-WorkerUI })
 
 function Generate-MathQuestion {
     $lim = [Math]::Min(4 + [int]$Global:GameState.Sectors.Clicker.Level, 12)
@@ -1006,7 +1267,32 @@ function Get-HouseById($id) {
 }
 
 function Get-HouseSellPrice($h) {
-    return [double]$h.Cost * (1 + ($Global:Config.BuildSellMarkupPct / 100))
+    $markup = (Get-Cfg 'BuildSellMarkupPct' 50.0)
+    return [double]$h.Cost * (1 + ($markup / 100))
+}
+
+function Get-Auction {
+    if ($null -eq $Global:GameState.PSObject.Properties['Auction']) { return $null }
+    return $Global:GameState.Auction
+}
+
+function Test-AuctionAlive($a) {
+    if ($null -eq $a) { return $false }
+    try { return ((Parse-UtcSafe $a.EndUtc) -gt [DateTime]::UtcNow) } catch { return $false }
+}
+
+function Get-AuctionPct($a) {
+    $dur = (Get-Cfg 'AuctionDurationSec' 30.0)
+    if ($dur -le 0) { $dur = 30.0 }
+    $end = Parse-UtcSafe $a.EndUtc
+    $prog = 1.0 - (($end - [DateTime]::UtcNow).TotalSeconds / $dur)
+    if ($prog -lt 0) { $prog = 0.0 }
+    if ($prog -gt 1) { $prog = 1.0 }
+    return ([double]$a.StartPct + (([double]$a.EndPct) - ([double]$a.StartPct)) * $prog)
+}
+
+function Get-AuctionSellPrice($a, $h) {
+    return [double]$h.Cost * (1 + (Get-AuctionPct $a) / 100)
 }
 
 function Build-House([string]$typeName, [double]$cost, [double]$waitMin) {
@@ -1076,6 +1362,27 @@ function Update-BuildUI {
         if ($null -ne $h -and (Test-HouseDone $h)) { $selDone = $true }
     }
     $btnBuildSell.Enabled = $selDone
+
+    $a = Get-Auction
+    if (-not (Test-AuctionAlive $a)) {
+        if ($null -ne $a) { $Global:GameState | Add-Member -MemberType NoteProperty -Name Auction -Value $null -Force }
+        $a = $null
+    }
+    if ($null -ne $a) {
+        $ah = Get-HouseById $a.HouseId
+        $pct = Get-AuctionPct $a
+        $aPrice = 0.0
+        if ($null -ne $ah) { $aPrice = Get-AuctionSellPrice $a $ah }
+        $left = [int]((Parse-UtcSafe $a.EndUtc) - [DateTime]::UtcNow).TotalSeconds
+        if ($left -lt 0) { $left = 0 }
+        $lblAuction.Text = "Lelang aktif: +{0:N1}% = Rp {1:N0} ({2} dtk)" -f $pct, $aPrice, $left
+        $lblAuction.ForeColor = [System.Drawing.Color]::Orange
+    } else {
+        $lblAuction.Text = "Lelang: tidak aktif"
+        $lblAuction.ForeColor = [System.Drawing.Color]::Gray
+    }
+    $btnBuildAuction.Enabled = ($null -eq $a) -and $selDone
+
     if ($houses.Count -eq 0) { $lblBuildStatus.Text = "Status: Belum ada bangunan." }
     else { $lblBuildStatus.Text = "Status: $nBuilding membangun, $nDone selesai" }
 }
@@ -1094,6 +1401,11 @@ $btnBuildSell.Add_Click({
         return
     }
     $sellPrice = Get-HouseSellPrice $h
+    $a = Get-Auction
+    if ((Test-AuctionAlive $a) -and [string]$a.HouseId -eq [string]$id) {
+        $sellPrice = Get-AuctionSellPrice $a $h
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name Auction -Value $null -Force
+    }
     $Global:GameState.Player.Money += $sellPrice
     $Global:GameState.Houses = @(@(Get-Houses) | Where-Object { $_.Id -ne $id })
     Add-WorkStat 'HouseSold' 1
@@ -1102,6 +1414,27 @@ $btnBuildSell.Add_Click({
     Update-WorkStatsUI
     Update-AllUI
     [System.Windows.Forms.MessageBox]::Show("Rumah terjual! +Rp $sellPrice")
+})
+
+$btnBuildAuction.Add_Click({
+    if ($lvBuilds.SelectedItems.Count -eq 0) { return }
+    $id = $lvBuilds.SelectedItems[0].Tag
+    $h = Get-HouseById $id
+    if ($null -eq $h -or -not (Test-HouseDone $h)) {
+        [System.Windows.Forms.MessageBox]::Show("Rumah itu belum selesai dibangun.")
+        return
+    }
+    if (Test-AuctionAlive (Get-Auction)) {
+        [System.Windows.Forms.MessageBox]::Show("Sudah ada lelang berjalan. Tunggu selesai atau jual dulu.")
+        return
+    }
+    $markup = (Get-Cfg 'BuildSellMarkupPct' 50.0)
+    $maxPct = (Get-Cfg 'AuctionMaxMarkupPct' 120.0)
+    if ($maxPct -le $markup) { $maxPct = $markup + 20.0 }
+    $endPct = $markup + (Get-Random -Minimum 0 -Maximum ([int](($maxPct - $markup) * 10) + 1)) / 10.0
+    $auction = [PSCustomObject]@{ HouseId = [string]$id; EndUtc = [DateTime]::UtcNow.AddSeconds((Get-Cfg 'AuctionDurationSec' 30.0)).ToString('o'); StartPct = $markup; EndPct = $endPct }
+    $Global:GameState | Add-Member -MemberType NoteProperty -Name Auction -Value $auction -Force
+    Update-BuildUI
 })
 
 $lvBuilds.Add_SelectedIndexChanged({
@@ -1630,7 +1963,7 @@ $timer.Add_Tick({
             try { $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.StockBuffMult } } catch {}
         }
         
-        $Global:GameState.Player.Money += $rate * $buff
+        $Global:GameState.Player.Money += $rate * $buff + (Get-WorkerRate)
         $Global:GameState.Player.PlaytimeSec += 1
         
         $Global:SaveCounter++
@@ -1643,6 +1976,9 @@ $timer.Add_Tick({
         Update-Chart
         if ($panelBuild.Visible) { Update-BuildUI }
         if ($panelStat.Visible) { Update-WorkStatsUI }
+        if ($panelContract.Visible) { Update-ContractsUI }
+        if ($panelWorker.Visible) { Update-WorkerUI }
+        Ensure-Contracts
         $Global:EngineCheckCounter++
         if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
     }
@@ -1657,6 +1993,8 @@ Update-Chart
 Show-WorkPanel $panelStat
 Update-WorkStatsUI
 Update-BuildUI
+Update-ContractsUI
+Update-WorkerUI
 $timer.Start()
 
 $form.Add_FormClosing({
