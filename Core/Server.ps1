@@ -101,6 +101,23 @@ function Read-FileSafe {
     return $null
 }
 
+function Find-JsonNodesDeep($node, [string[]]$propNames) {
+    $found = @()
+    if ($node -is [System.Array]) {
+        foreach ($item in $node) { $found += @(Find-JsonNodesDeep $item $propNames) }
+        return $found
+    }
+    if ($node -is [System.Management.Automation.PSCustomObject]) {
+        $hasAll = $true
+        foreach ($n in $propNames) {
+            if ($null -eq $node.PSObject.Properties[$n]) { $hasAll = $false; break }
+        }
+        if ($hasAll) { return @($node) }
+        foreach ($p in $node.PSObject.Properties) { $found += @(Find-JsonNodesDeep $p.Value $propNames) }
+    }
+    return $found
+}
+
 $Global:PairFails = @{}
 $Global:AdminFails = @{}
 
@@ -382,7 +399,9 @@ while ($listener.IsListening) {
                             $queue = @()
                             if (Test-Path $queuePath) {
                                 $rawQ = Read-FileSafe $queuePath
-                                if (-not [string]::IsNullOrWhiteSpace($rawQ)) { $queue = @($rawQ | ConvertFrom-Json) }
+                                if (-not [string]::IsNullOrWhiteSpace($rawQ)) {
+                                    try { $queue = @(Find-JsonNodesDeep (($rawQ -replace "^\uFEFF", "") | ConvertFrom-Json) @('Action','Ticker')) } catch { $queue = @() }
+                                }
                             }
                             
                             
@@ -407,7 +426,7 @@ while ($listener.IsListening) {
                         $rawR = Read-FileSafe $receiptsPath
                         if (-not [string]::IsNullOrWhiteSpace($rawR)) {
                             try {
-                                $receipts = @($rawR | ConvertFrom-Json)
+                                $receipts = @(Find-JsonNodesDeep (($rawR -replace "^\uFEFF", "") | ConvertFrom-Json) @('Id','Status'))
                                 foreach ($r in $receipts) {
                                     if ($r.Id -eq $orderId) {
                                         $respJson = @{ status = $r.Status; message = $r.Message } | ConvertTo-Json -Compress

@@ -49,6 +49,23 @@ function Write-WebQueueLog($level, $message) {
     } catch { }
 }
 
+function Find-JsonNodesDeep($node, [string[]]$propNames) {
+    $found = @()
+    if ($node -is [System.Array]) {
+        foreach ($item in $node) { $found += @(Find-JsonNodesDeep $item $propNames) }
+        return $found
+    }
+    if ($node -is [System.Management.Automation.PSCustomObject]) {
+        $hasAll = $true
+        foreach ($n in $propNames) {
+            if ($null -eq $node.PSObject.Properties[$n]) { $hasAll = $false; break }
+        }
+        if ($hasAll) { return @($node) }
+        foreach ($p in $node.PSObject.Properties) { $found += @(Find-JsonNodesDeep $p.Value $propNames) }
+    }
+    return $found
+}
+
 function Add-WebReceipt($id, $status, $message) {
     $receiptsPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\receipts.json'))
     try {
@@ -57,7 +74,7 @@ function Add-WebReceipt($id, $status, $message) {
             if (Test-Path $receiptsPath) {
                 $rawR = [System.IO.File]::ReadAllText($receiptsPath)
                 if (-not [string]::IsNullOrWhiteSpace($rawR)) {
-                    try { $receipts = @($rawR -replace "^\uFEFF", "" | ConvertFrom-Json) } catch { $receipts = @() }
+                    try { $receipts = @(Find-JsonNodesDeep (($rawR -replace "^\uFEFF", "") | ConvertFrom-Json) @('Id','Status')) } catch { $receipts = @() }
                 }
             }
         } catch { $receipts = @() }
@@ -128,8 +145,17 @@ function Process-WebQueue {
         } catch { return }
 
         if ([string]::IsNullOrWhiteSpace($raw)) { return }
-        $queue = @(($raw -replace "^\uFEFF", "") | ConvertFrom-Json)
+        $parsed = $null
+        try { $parsed = ($raw -replace "^\uFEFF", "") | ConvertFrom-Json } catch {
+            Write-WebQueueLog "ERROR" ("queue.json rusak, tidak bisa di-parse: " + $_.Exception.Message)
+            return
+        }
+        $queue = @(Find-JsonNodesDeep $parsed @('Action','Ticker'))
         if ($queue.Count -eq 0) { return }
+        $topCount = @($parsed).Count
+        if ($queue.Count -ne $topCount) {
+            Write-WebQueueLog "INFO" ("Antrian korup dipulihkan: {0} order asli digali dari {1} node bersarang - antrian ditulis ulang bersih" -f $queue.Count, $topCount)
+        }
 
         $mine = @(); $remaining = @()
         foreach ($q in $queue) {
@@ -143,6 +169,9 @@ function Process-WebQueue {
             if ($script:WebLastSkipLog -ne $sig) {
                 $script:WebLastSkipLog = $sig
                 Write-WebQueueLog "INFO" ("Antrian berisi {0} order utk profil '{1}' - monitor ini '{2}', dilewati" -f $queue.Count, $profiles, $activeProfile)
+            }
+            if ($queue.Count -ne $topCount) {
+                ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
             }
             return
         }
