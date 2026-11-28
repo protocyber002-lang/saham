@@ -49,6 +49,23 @@ function Write-WebQueueLog($level, $message) {
     } catch { }
 }
 
+function Find-JsonNodesDeep($node, [string[]]$propNames) {
+    $found = @()
+    if ($node -is [System.Array]) {
+        foreach ($item in $node) { $found += @(Find-JsonNodesDeep $item $propNames) }
+        return $found
+    }
+    if ($node -is [System.Management.Automation.PSCustomObject]) {
+        $hasAll = $true
+        foreach ($n in $propNames) {
+            if ($null -eq $node.PSObject.Properties[$n]) { $hasAll = $false; break }
+        }
+        if ($hasAll) { return @($node) }
+        foreach ($p in $node.PSObject.Properties) { $found += @(Find-JsonNodesDeep $p.Value $propNames) }
+    }
+    return $found
+}
+
 function Add-WebReceipt($id, $status, $message) {
     $receiptsPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\receipts.json'))
     try {
@@ -57,7 +74,7 @@ function Add-WebReceipt($id, $status, $message) {
             if (Test-Path $receiptsPath) {
                 $rawR = [System.IO.File]::ReadAllText($receiptsPath)
                 if (-not [string]::IsNullOrWhiteSpace($rawR)) {
-                    try { $receipts = @($rawR -replace "^\uFEFF", "" | ConvertFrom-Json) } catch { $receipts = @() }
+                    try { $receipts = @(Find-JsonNodesDeep (($rawR -replace "^\uFEFF", "") | ConvertFrom-Json) @('Id','Status')) } catch { $receipts = @() }
                 }
             }
         } catch { $receipts = @() }
@@ -90,11 +107,17 @@ function Get-QueueOrderId($q) {
     return ([string]$q.Ticker) + "|" + [string]$q.Qty + "|" + [string]$q.Time
 }
 
+$script:WebLastSkipLog = ""
+$script:WebLastLockWarn = [DateTime]::MinValue
+
 function Process-WebQueue {
     if ($null -eq $Global:GameState) { return }
     $activeProfile = ''
     try { $activeProfile = [string](Get-ActiveProfile) } catch { $activeProfile = '' }
-    if ([string]::IsNullOrWhiteSpace($activeProfile)) { return }
+    if ([string]::IsNullOrWhiteSpace($activeProfile)) {
+        Write-WebQueueLog "WARN" "Profil aktif kosong - monitor antrian dilewati"
+        return
+    }
 
     $queuePath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\queue.json'))
     $lockPath  = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\queue.lock'))
@@ -103,7 +126,13 @@ function Process-WebQueue {
         try { $lockFs = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None); break }
         catch { Start-Sleep -Milliseconds 50 }
     }
-    if (-not $lockFs) { return }
+    if (-not $lockFs) {
+        if (([DateTime]::UtcNow - $script:WebLastLockWarn).TotalSeconds -ge 60) {
+            $script:WebLastLockWarn = [DateTime]::UtcNow
+            Write-WebQueueLog "WARN" "Gagal mengunci queue.lock 3 detik - tick dilewati (konsumen lain terlalu agresif?)"
+        }
+        return
+    }
 
     try {
         if (-not (Test-Path $queuePath)) { return }
@@ -116,8 +145,17 @@ function Process-WebQueue {
         } catch { return }
 
         if ([string]::IsNullOrWhiteSpace($raw)) { return }
-        $queue = @(($raw -replace "^\uFEFF", "") | ConvertFrom-Json)
+        $parsed = $null
+        try { $parsed = ($raw -replace "^\uFEFF", "") | ConvertFrom-Json } catch {
+            Write-WebQueueLog "ERROR" ("queue.json rusak, tidak bisa di-parse: " + $_.Exception.Message)
+            return
+        }
+        $queue = @(Find-JsonNodesDeep $parsed @('Action','Ticker'))
         if ($queue.Count -eq 0) { return }
+        $topCount = @($parsed).Count
+        if ($queue.Count -ne $topCount) {
+            Write-WebQueueLog "INFO" ("Antrian korup dipulihkan: {0} order asli digali dari {1} node bersarang - antrian ditulis ulang bersih" -f $queue.Count, $topCount)
+        }
 
         $mine = @(); $remaining = @()
         foreach ($q in $queue) {
@@ -125,13 +163,29 @@ function Process-WebQueue {
             if ($null -ne $qProf -and ([string]$qProf.Value) -ieq $activeProfile) { $mine += $q }
             else { $remaining += $q }
         }
-        if ($mine.Count -eq 0) { return }
+        if ($mine.Count -eq 0) {
+            $profiles = (@($queue | ForEach-Object { $p = $_.PSObject.Properties['Profile']; if ($p) { [string]$p.Value } else { "(kosong)" } }) | Select-Object -Unique) -join ","
+            $sig = $profiles + "|" + $activeProfile
+            if ($script:WebLastSkipLog -ne $sig) {
+                $script:WebLastSkipLog = $sig
+                Write-WebQueueLog "INFO" ("Antrian berisi {0} order utk profil '{1}' - monitor ini '{2}', dilewati" -f $queue.Count, $profiles, $activeProfile)
+            }
+            if ($queue.Count -ne $topCount) {
+                ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
+            }
+            return
+        }
+        $script:WebLastSkipLog = ""
         Write-WebQueueLog "INFO" ("Antrian diterima: {0} order utk profil '{1}'" -f $mine.Count, $activeProfile)
 
         if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState['Portfolio'] = @{} }
         Normalize-Portfolio
         if (-not $Global:GameState.Player.ContainsKey('Money')) { $Global:GameState.Player.Money = 0.0 }
         $stocks = Load-StockData
+        if ($null -eq $stocks -or @($stocks).Count -eq 0) {
+            Write-WebQueueLog "WARN" "Load-StockData kosong - order tidak bisa dieksekusi tick ini"
+            return
+        }
 
         $heldBack = @()
         foreach ($q in $mine) {
@@ -216,6 +270,7 @@ function Start-Engine {
         if ($null -eq $Global:GameState.Flags) { $Global:GameState.Flags = @{} }
         if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState['Portfolio'] = @{} }
         Normalize-Portfolio
+        Write-WebQueueLog "INFO" ("Monitor antrian web aktif untuk profil '{0}'" -f $ProfileName)
         $Global:GameState.Flags['ShowStockMenu'] = $false
         $Global:GameState.Flags['ShowBotMenu'] = $false
     } catch {
