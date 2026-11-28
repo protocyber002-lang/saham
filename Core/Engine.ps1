@@ -226,6 +226,7 @@ function Process-WebQueue {
                 $port.AvgPrice = ($oldTotal + $cost) / $port.Shares
                 $Global:GameState.Flags['LastClickMsg'] = ("[WEB] Sukses beli $qty lembar " + $q.Ticker + " @ Rp {0:N2}" -f $stock.Price)
                 Add-WebReceipt $id "Executed" ("Beli " + $qty + " lembar " + $q.Ticker + " tercatat di TUI")
+                if (Get-Command Grant-BuyBuff -ErrorAction SilentlyContinue) { Grant-BuyBuff $qty }
                 Write-WebQueueLog "OK" ("Profil '{0}' membeli {1} lembar {2} (order {3})" -f $activeProfile, $qty, $q.Ticker, $id.Substring(0, [Math]::Min(8, $id.Length)))
                 try { SaveSystem.Save } catch {}
             } else {
