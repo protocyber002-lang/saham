@@ -45,6 +45,8 @@ $Global:ConfigPath  = Join-Path $Global:RootPath "Core\Config.ps1"
 $Global:WorkConfigPath = Join-Path $Global:RootPath "Data\work_config.json"
 $Global:WorkCfgStamp = 0
 $Global:WorkCfgCheck = 0
+$Global:AnnouncePath = Join-Path $Global:RootPath "Data\announcements.json"
+$Global:AnnounceStamp = 0
 if (Test-Path $Global:WorkConfigPath) { $Global:WorkCfgStamp = (Get-Item $Global:WorkConfigPath).LastWriteTimeUtc.Ticks }
 $Global:ProfilePath = ""
 $Global:ActiveProfileName = ""
@@ -330,6 +332,14 @@ $lblClickBuffInfo.Location = New-Object System.Drawing.Point(30, 325)
 $lblClickBuffInfo.AutoSize = $true
 $tabMain.Controls.Add($lblClickBuffInfo)
 
+$lblAnnounce = New-Object System.Windows.Forms.Label
+$lblAnnounce.Text = "PENGUMUMAN:"
+$lblAnnounce.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblAnnounce.ForeColor = [System.Drawing.Color]::FromArgb(130, 200, 255)
+$lblAnnounce.Location = New-Object System.Drawing.Point(30, 365)
+$lblAnnounce.Size = New-Object System.Drawing.Size(340, 230)
+$tabMain.Controls.Add($lblAnnounce)
+
 function Create-ActionButton($text, $x, $y, $w, $h, $bgColor) {
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $text
@@ -537,7 +547,7 @@ $panelToolbar.Controls.Add($btnZoomIn)
 $panelToolbar.Controls.Add($btnZoomOut)
 $panelToolbar.Controls.Add($lblZoomRatio)
 $panelToolbar.Controls.Add($btnReset)
-$panelToolbar.Controls.Add($btnLogout)
+$tabMain.Controls.Add($btnLogout)
 
 $btn1H.BackColor = [System.Drawing.Color]::Purple
 foreach ($b in @($btn1M, $btn5M, $btn15M, $btn12H, $btn1D)) { $b.BackColor = [System.Drawing.Color]::FromArgb(50, 50, 50) }
@@ -2211,6 +2221,53 @@ function Initialize-Table {
     if ($dgvStocks.Rows.Count -gt 0) { $dgvStocks.Rows[0].Selected = $true }
 }
 
+function Sync-StockRows {
+    $stocks = Load-StocksData
+    if ($null -eq $stocks -or @($stocks).Count -eq 0) { return }
+    $liveTickers = @{}
+    foreach ($s in @($stocks)) { $liveTickers[[string]$s.Ticker] = $true }
+    $rowTickers = @{}
+    foreach ($row in $dgvStocks.Rows) { if ($row.Tag) { $rowTickers[[string]$row.Tag] = $true } }
+    foreach ($tk in $liveTickers.Keys) {
+        if (-not $rowTickers.ContainsKey($tk)) {
+            $rowIndex = $dgvStocks.Rows.Add($tk, "", "", "", "", "", "", "")
+            $dgvStocks.Rows[$rowIndex].Tag = $tk
+        }
+    }
+    $stale = @()
+    foreach ($row in $dgvStocks.Rows) { if ($row.Tag -and -not $liveTickers.ContainsKey([string]$row.Tag)) { $stale += $row } }
+    foreach ($row in $stale) { $dgvStocks.Rows.Remove($row) }
+}
+
+function Update-AnnounceUI {
+    try {
+        if (Test-Path $Global:AnnouncePath) {
+            $mt = (Get-Item $Global:AnnouncePath).LastWriteTimeUtc.Ticks
+            if ($mt -ne $Global:AnnounceStamp) {
+                $Global:AnnounceStamp = $mt
+                $raw = [System.IO.File]::ReadAllText($Global:AnnouncePath) -replace "^\uFEFF", ""
+                $items = @()
+                if (-not [string]::IsNullOrWhiteSpace($raw)) { try { $items = @($raw | ConvertFrom-Json) } catch { $items = @() } }
+                $lines = @()
+                $start = [Math]::Max(0, @($items).Count - 6)
+                for ($i = $start; $i -lt @($items).Count; $i++) {
+                    $it = $items[$i]
+                    $msg = ""
+                    $pMsg = $it.PSObject.Properties['Message']
+                    if ($null -ne $pMsg) { $msg = [string]$pMsg.Value }
+                    $t = [DateTime]::Now
+                    $pTime = $it.PSObject.Properties['Time']
+                    if ($null -ne $pTime) {
+                        try { $t = [DateTime]::Parse([string]$pTime.Value, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime() } catch { }
+                    }
+                    $lines += ($t.ToString("dd-MM HH:mm") + "  " + $msg)
+                }
+                $lblAnnounce.Text = "PENGUMUMAN:" + [Environment]::NewLine + ($lines -join [Environment]::NewLine)
+            }
+        }
+    } catch { }
+}
+
 function Update-Chart {
     if ($dgvStocks.SelectedRows.Count -gt 0) {
         $selTicker = $dgvStocks.SelectedRows[0].Tag
@@ -2618,9 +2675,11 @@ $timer.Add_Tick({
         Ensure-Contracts
         $Global:EngineCheckCounter++
         if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
+        Sync-StockRows
         $Global:WorkCfgCheck++
         if ($Global:WorkCfgCheck -ge 3) {
             $Global:WorkCfgCheck = 0
+            Update-AnnounceUI
             try {
                 if (Test-Path $Global:WorkConfigPath) {
                     $mt = (Get-Item $Global:WorkConfigPath).LastWriteTimeUtc.Ticks
@@ -2650,6 +2709,7 @@ Update-ContractsUI
 foreach ($f in (Get-FacilityDefs)) { [void]$cmbFacility.Items.Add($f.Name) }
 Update-MarketUI
 Update-WorkerUI
+Update-AnnounceUI
 $timer.Start()
 
 $form.Add_FormClosing({

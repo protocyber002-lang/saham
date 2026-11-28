@@ -1,6 +1,9 @@
 # MarketEngine.ps1 - Entitas Tunggal Penggerak Harga Saham
 Set-StrictMode -Version 2.0
 $Global:StockDataPath = Join-Path $PSScriptRoot '..\Data\stocks.json'
+$votesPath = Join-Path $PSScriptRoot '..\Data\stock_votes.json'
+$annPath = Join-Path $PSScriptRoot '..\Data\announcements.json'
+$profilesDir = Join-Path $PSScriptRoot '..\Data\profiles'
 $logPath = Join-Path $PSScriptRoot '..\Data\market.log'
 
 function Write-Log($msg) {
@@ -30,6 +33,58 @@ function Save-MarketData($stocks) {
         if (Test-Path $Global:StockDataPath) { Remove-Item $Global:StockDataPath -Force -ErrorAction SilentlyContinue }
         Move-Item $tmp $Global:StockDataPath -Force
     } catch { Write-Log "SAVE ERROR: $($_.Exception.Message)" }
+}
+
+function Get-ProfileCountV {
+    try {
+        $files = @(Get-ChildItem $profilesDir -Filter "*.json" -ErrorAction SilentlyContinue)
+        return $files.Count
+    } catch { return 0 }
+}
+
+function Get-StockVotes {
+    $result = @{}
+    try {
+        if (Test-Path $votesPath) {
+            $raw = [System.IO.File]::ReadAllText($votesPath) -replace "^\uFEFF", ""
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $obj = $raw | ConvertFrom-Json
+                foreach ($p in $obj.PSObject.Properties) {
+                    $list = @()
+                    if ($null -ne $p.Value) { foreach ($v in @($p.Value)) { $list += [string]$v } }
+                    $result[[string]$p.Name] = $list
+                }
+            }
+        }
+    } catch { }
+    return $result
+}
+
+function Save-StockVotes($votes) {
+    try {
+        $tmp = "$votesPath.tmp"
+        $json = "{}"
+        if ($votes.Count -gt 0) { $json = $votes | ConvertTo-Json -Depth 5 -Compress }
+        [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
+        if (Test-Path $votesPath) { Remove-Item $votesPath -Force -ErrorAction SilentlyContinue }
+        Move-Item $tmp $votesPath -Force
+    } catch { }
+}
+
+function Add-Announcement($msg) {
+    try {
+        $items = @()
+        if (Test-Path $annPath) {
+            $raw = [System.IO.File]::ReadAllText($annPath) -replace "^\uFEFF", ""
+            if (-not [string]::IsNullOrWhiteSpace($raw)) { try { $items = @($raw | ConvertFrom-Json) } catch { $items = @() } }
+        }
+        $items += @{ Time = [DateTime]::UtcNow.ToString("o"); Message = $msg }
+        while (@($items).Count -gt 50) { $items = @($items[1..(@($items).Count - 1)]) }
+        $tmp = "$annPath.tmp"
+        [System.IO.File]::WriteAllText($tmp, ($items | ConvertTo-Json -Depth 4 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+        if (Test-Path $annPath) { Remove-Item $annPath -Force -ErrorAction SilentlyContinue }
+        Move-Item $tmp $annPath -Force
+    } catch { }
 }
 
 function Load-MarketData {
@@ -108,6 +163,31 @@ while ($true) {
     try {
         $stocks = Load-MarketData
         $now = [DateTime]::Now
+
+        # Proses vote hapus saham: >= 51% dari semua profil meminta
+        try {
+            $profCount = Get-ProfileCountV
+            if ($profCount -ge 1) {
+                $threshold = [Math]::Ceiling(0.51 * $profCount)
+                $votes = Get-StockVotes
+                $votesChanged = $false
+                foreach ($tk in @($votes.Keys)) {
+                    $voters = @($votes[$tk])
+                    if ($voters.Count -ge $threshold) {
+                        $target = $null
+                        foreach ($s in $stocks) { if ($s.Ticker -eq $tk) { $target = $s; break } }
+                        if ($null -ne $target) {
+                            $stocks = @($stocks | Where-Object { $_.Ticker -ne $tk })
+                            Add-Announcement ("Saham {0} ({1}) dihapus - disetujui {2} dari {3} profil" -f $tk, $target.Name, $voters.Count, $profCount)
+                            Write-Log ("Saham {0} dihapus (vote {1}/{2} profil)" -f $tk, $voters.Count, $profCount)
+                        }
+                        $votes.Remove($tk)
+                        $votesChanged = $true
+                    }
+                }
+                if ($votesChanged) { Save-StockVotes $votes }
+            }
+        } catch { Write-Log ("VOTE ERROR: " + $_.Exception.Message) }
         
         foreach ($s in $stocks) {
             if ($s.TrendTimeLeft -le 0) {
