@@ -55,7 +55,7 @@ $Global:ZoomLevel = 1.0
 # Load Config
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
-else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; HouseType21_Hebel=790; HouseType21_Semen=55; HouseType21_Pasir=10; HouseType21_WorkHours=90.0; HouseType21_MinWorkers=3; HouseType45_Hebel=1580; HouseType45_Semen=110; HouseType45_Pasir=20; HouseType45_WorkHours=180.0; HouseType45_MinWorkers=5; HouseType90_Hebel=3950; HouseType90_Semen=275; HouseType90_Pasir=50; HouseType90_WorkHours=270.0; HouseType90_MinWorkers=8; HouseType120_Hebel=7900; HouseType120_Semen=550; HouseType120_Pasir=100; HouseType120_WorkHours=360.0; HouseType120_MinWorkers=10; HebelPrice=300.0; SemenPrice=2000.0; PasirPrice=15000.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0; WorkerSpeedBonusPerLvl=0.02; SellTaxPct=10.0; RentYieldPctPerHour=0.10; Facility_Carport_Cost=75000.0; Facility_Carport_RentPct=10.0; Facility_Taman_Cost=150000.0; Facility_Taman_RentPct=15.0; Facility_Kolam_Cost=250000.0; Facility_Kolam_RentPct=25.0; Facility_Rooftop_Cost=400000.0; Facility_Rooftop_RentPct=35.0 } }
+else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; HouseType21_Hebel=790; HouseType21_Semen=55; HouseType21_Pasir=10; HouseType21_WorkHours=90.0; HouseType21_MinWorkers=3; HouseType45_Hebel=1580; HouseType45_Semen=110; HouseType45_Pasir=20; HouseType45_WorkHours=180.0; HouseType45_MinWorkers=5; HouseType90_Hebel=3950; HouseType90_Semen=275; HouseType90_Pasir=50; HouseType90_WorkHours=270.0; HouseType90_MinWorkers=8; HouseType120_Hebel=7900; HouseType120_Semen=550; HouseType120_Pasir=100; HouseType120_WorkHours=360.0; HouseType120_MinWorkers=10; HebelPrice=300.0; SemenPrice=2000.0; PasirPrice=15000.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0; WorkerSpeedBonusPerLvl=0.02; SellTaxPct=10.0; SellMaterialBonusPct=2.0; RentYieldPctPerHour=0.10; Facility_Carport_Cost=75000.0; Facility_Carport_RentPct=10.0; Facility_Taman_Cost=150000.0; Facility_Taman_RentPct=15.0; Facility_Kolam_Cost=250000.0; Facility_Kolam_RentPct=25.0; Facility_Rooftop_Cost=400000.0; Facility_Rooftop_RentPct=35.0 } }
 
 function Get-Cfg([string]$key, [double]$def) {
     try { if ($Global:Config.ContainsKey($key)) { return [double]$Global:Config[$key] } } catch {}
@@ -902,10 +902,14 @@ $lblBuildInfo.Location = New-Object System.Drawing.Point(20, 28)
 $lblBuildInfo.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildInfo)
 
-$btnBuildT21 = Create-ActionButton "Bangun Type 21" 20 130 125 40 $ColorAccent
-$btnBuildT45 = Create-ActionButton "Bangun Type 45" 150 130 125 40 $ColorAccent
-$btnBuildT90 = Create-ActionButton "Bangun Type 90" 280 130 125 40 $ColorAccent
-$btnBuildT120 = Create-ActionButton "Bangun Type 120" 410 130 125 40 $ColorAccent
+$btnBuildT21 = Create-ActionButton "Bangun Type 21" 20 130 125 36 $ColorAccent
+$btnBuildT45 = Create-ActionButton "Bangun Type 45" 150 130 125 36 $ColorAccent
+$btnBuildT90 = Create-ActionButton "Bangun Type 90" 280 130 125 36 $ColorAccent
+$btnBuildT120 = Create-ActionButton "Bangun Type 120" 410 130 125 36 $ColorAccent
+$btnBuildT21.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$btnBuildT45.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$btnBuildT90.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$btnBuildT120.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $panelBuild.Controls.Add($btnBuildT21)
 $panelBuild.Controls.Add($btnBuildT45)
 $panelBuild.Controls.Add($btnBuildT90)
@@ -913,78 +917,96 @@ $panelBuild.Controls.Add($btnBuildT120)
 
 $lblBuildStatus = New-Object System.Windows.Forms.Label
 $lblBuildStatus.Text = "Status: Belum ada bangunan."
-$lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 178)
+$lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 170)
 $lblBuildStatus.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildStatus)
 
 $lblWorkersInfo = New-Object System.Windows.Forms.Label
 $lblWorkersInfo.Text = "Pekerja: siap 0 | bekerja 0"
-$lblWorkersInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblWorkersInfo.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $lblWorkersInfo.ForeColor = $ColorSuccess
-$lblWorkersInfo.Location = New-Object System.Drawing.Point(20, 205)
+$lblWorkersInfo.Location = New-Object System.Drawing.Point(20, 196)
 $lblWorkersInfo.AutoSize = $true
 $panelBuild.Controls.Add($lblWorkersInfo)
 
-$btnBuildHire = Create-ActionButton "Rekrut Pekerja" 280 200 130 35 $ColorAccent
+$btnBuildHire = Create-ActionButton "Rekrut Pekerja" 20 222 190 32 $ColorAccent
+$btnBuildHire.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $panelBuild.Controls.Add($btnBuildHire)
 
-$btnBuildAddWorker = Create-ActionButton "Pekerja -> Rumah" 420 200 150 35 $ColorSuccess
+$btnBuildAddWorker = Create-ActionButton "Pekerja -> Rumah" 220 222 190 32 $ColorSuccess
+$btnBuildAddWorker.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $btnBuildAddWorker.Enabled = $false
 $panelBuild.Controls.Add($btnBuildAddWorker)
 
 $lblMatTitle = New-Object System.Windows.Forms.Label
-$lblMatTitle.Text = "Bahan Bangunan (beli stok, dipakai saat bangun):"
+$lblMatTitle.Text = "Bahan (jumlah beli):"
 $lblMatTitle.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$lblMatTitle.Location = New-Object System.Drawing.Point(20, 245)
+$lblMatTitle.Location = New-Object System.Drawing.Point(20, 264)
 $lblMatTitle.AutoSize = $true
 $panelBuild.Controls.Add($lblMatTitle)
+
+$rbQty100 = New-Object System.Windows.Forms.RadioButton
+$rbQty100.Text = "100"
+$rbQty100.Checked = $true
+$rbQty100.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$rbQty100.ForeColor = $ColorText
+$rbQty100.Location = New-Object System.Drawing.Point(300, 261)
+$rbQty100.AutoSize = $true
+$panelBuild.Controls.Add($rbQty100)
+
+$rbQty500 = New-Object System.Windows.Forms.RadioButton
+$rbQty500.Text = "500"
+$rbQty500.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$rbQty500.ForeColor = $ColorText
+$rbQty500.Location = New-Object System.Drawing.Point(370, 261)
+$rbQty500.AutoSize = $true
+$panelBuild.Controls.Add($rbQty500)
+
+$rbQty1000 = New-Object System.Windows.Forms.RadioButton
+$rbQty1000.Text = "1000"
+$rbQty1000.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$rbQty1000.ForeColor = $ColorText
+$rbQty1000.Location = New-Object System.Drawing.Point(445, 261)
+$rbQty1000.AutoSize = $true
+$panelBuild.Controls.Add($rbQty1000)
 
 $lblMatHebel = New-Object System.Windows.Forms.Label
 $lblMatHebel.Text = "Hebel"
 $lblMatHebel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblMatHebel.Location = New-Object System.Drawing.Point(20, 272)
+$lblMatHebel.Location = New-Object System.Drawing.Point(20, 294)
 $lblMatHebel.AutoSize = $true
 $panelBuild.Controls.Add($lblMatHebel)
-$txtBuyHebel = New-Object System.Windows.Forms.TextBox
-$txtBuyHebel.Location = New-Object System.Drawing.Point(330, 268)
-$txtBuyHebel.Size = New-Object System.Drawing.Size(70, 24)
-$panelBuild.Controls.Add($txtBuyHebel)
-$btnBuyHebel = Create-ActionButton "Beli" 410 266 80 28 $ColorAccent
+$btnBuyHebel = Create-ActionButton "Beli" 410 292 80 28 $ColorAccent
+$btnBuyHebel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $panelBuild.Controls.Add($btnBuyHebel)
 
 $lblMatSemen = New-Object System.Windows.Forms.Label
 $lblMatSemen.Text = "Semen"
 $lblMatSemen.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblMatSemen.Location = New-Object System.Drawing.Point(20, 300)
+$lblMatSemen.Location = New-Object System.Drawing.Point(20, 322)
 $lblMatSemen.AutoSize = $true
 $panelBuild.Controls.Add($lblMatSemen)
-$txtBuySemen = New-Object System.Windows.Forms.TextBox
-$txtBuySemen.Location = New-Object System.Drawing.Point(330, 296)
-$txtBuySemen.Size = New-Object System.Drawing.Size(70, 24)
-$panelBuild.Controls.Add($txtBuySemen)
-$btnBuySemen = Create-ActionButton "Beli" 410 294 80 28 $ColorAccent
+$btnBuySemen = Create-ActionButton "Beli" 410 320 80 28 $ColorAccent
+$btnBuySemen.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $panelBuild.Controls.Add($btnBuySemen)
 
 $lblMatPasir = New-Object System.Windows.Forms.Label
 $lblMatPasir.Text = "Pasir"
 $lblMatPasir.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$lblMatPasir.Location = New-Object System.Drawing.Point(20, 328)
+$lblMatPasir.Location = New-Object System.Drawing.Point(20, 350)
 $lblMatPasir.AutoSize = $true
 $panelBuild.Controls.Add($lblMatPasir)
-$txtBuyPasir = New-Object System.Windows.Forms.TextBox
-$txtBuyPasir.Location = New-Object System.Drawing.Point(330, 324)
-$txtBuyPasir.Size = New-Object System.Drawing.Size(70, 24)
-$panelBuild.Controls.Add($txtBuyPasir)
-$btnBuyPasir = Create-ActionButton "Beli" 410 322 80 28 $ColorAccent
+$btnBuyPasir = Create-ActionButton "Beli" 410 348 80 28 $ColorAccent
+$btnBuyPasir.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $panelBuild.Controls.Add($btnBuyPasir)
 
 $lvBuilds = New-Object System.Windows.Forms.ListView
 $lvBuilds.View = [System.Windows.Forms.View]::Details
 $lvBuilds.FullRowSelect = $true
 $lvBuilds.GridLines = $true
-$lvBuilds.Location = New-Object System.Drawing.Point(20, 360)
-$lvBuilds.Size = New-Object System.Drawing.Size(540, 175)
+$lvBuilds.Location = New-Object System.Drawing.Point(20, 384)
+$lvBuilds.Size = New-Object System.Drawing.Size(540, 152)
 $lvBuilds.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 [void]$lvBuilds.Columns.Add("No", 40)
 [void]$lvBuilds.Columns.Add("Tipe", 80)
@@ -1898,7 +1920,7 @@ function Update-BuildUI {
     $free = Get-FreeWorkers
     $busy = Get-BusyWorkers
     $lvl = Get-WorkerLevel
-    $lblWorkersInfo.Text = "Pekerja: siap {0} | bekerja {1} | level {2} (kecepatan +{3:N0}%)" -f $free, $busy, $lvl, (((Get-WorkerSpeedFactor) - 1.0) * 100)
+    $lblWorkersInfo.Text = "Pekerja: siap {0} | bekerja {1} | lvl {2} (+{3:N0}%)" -f $free, $busy, $lvl, (((Get-WorkerSpeedFactor) - 1.0) * 100)
     $costHire = Get-WorkerHireCost
     $btnBuildHire.Text = "Rekrut (Rp {0:N0})" -f $costHire
     $btnBuildHire.Enabled = ([double]$Global:GameState.Player.Money -ge $costHire)
@@ -1941,9 +1963,9 @@ $btnBuildAddWorker.Add_Click({
 })
 
 $btnBuyHebel.Add_Click({
-    $qty = 0
-    try { $qty = [int]$txtBuyHebel.Text } catch { $qty = 0 }
-    if ($qty -le 0) { return }
+    $qty = 100
+    if ($rbQty500.Checked) { $qty = 500 }
+    elseif ($rbQty1000.Checked) { $qty = 1000 }
     $cost = $qty * (Get-Cfg 'HebelPrice' 300.0)
     if ([double]$Global:GameState.Player.Money -lt $cost) {
         [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
@@ -1952,15 +1974,14 @@ $btnBuyHebel.Add_Click({
     $Global:GameState.Player.Money -= $cost
     $m = Get-Materials
     $m | Add-Member -MemberType NoteProperty -Name Hebel -Value (([double]$m.Hebel) + $qty) -Force
-    $txtBuyHebel.Text = ""
     Update-BuildUI
     Update-AllUI
 })
 
 $btnBuySemen.Add_Click({
-    $qty = 0
-    try { $qty = [int]$txtBuySemen.Text } catch { $qty = 0 }
-    if ($qty -le 0) { return }
+    $qty = 100
+    if ($rbQty500.Checked) { $qty = 500 }
+    elseif ($rbQty1000.Checked) { $qty = 1000 }
     $cost = $qty * (Get-Cfg 'SemenPrice' 2000.0)
     if ([double]$Global:GameState.Player.Money -lt $cost) {
         [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
@@ -1969,15 +1990,14 @@ $btnBuySemen.Add_Click({
     $Global:GameState.Player.Money -= $cost
     $m = Get-Materials
     $m | Add-Member -MemberType NoteProperty -Name Semen -Value (([double]$m.Semen) + $qty) -Force
-    $txtBuySemen.Text = ""
     Update-BuildUI
     Update-AllUI
 })
 
 $btnBuyPasir.Add_Click({
-    $qty = 0
-    try { $qty = [int]$txtBuyPasir.Text } catch { $qty = 0 }
-    if ($qty -le 0) { return }
+    $qty = 100
+    if ($rbQty500.Checked) { $qty = 500 }
+    elseif ($rbQty1000.Checked) { $qty = 1000 }
     $cost = $qty * (Get-Cfg 'PasirPrice' 15000.0)
     if ([double]$Global:GameState.Player.Money -lt $cost) {
         [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
@@ -1986,7 +2006,6 @@ $btnBuyPasir.Add_Click({
     $Global:GameState.Player.Money -= $cost
     $m = Get-Materials
     $m | Add-Member -MemberType NoteProperty -Name Pasir -Value (([double]$m.Pasir) + $qty) -Force
-    $txtBuyPasir.Text = ""
     Update-BuildUI
     Update-AllUI
 })
@@ -2010,12 +2029,21 @@ $btnBuildSell.Add_Click({
     $Global:GameState.Player.Money += $net
     $Global:GameState.Houses = @(@(Get-Houses) | Where-Object { $_.Id -ne $id })
     Add-HouseMarketListing $h $sellPrice
+    $bonusPct = (Get-Cfg 'SellMaterialBonusPct' 2.0) / 100.0
+    $tB = Get-TypeNeeds ([string]$h.Type)
+    $mB = Get-Materials
+    $bHebel = $tB.Hebel * $bonusPct
+    $bSemen = $tB.Semen * $bonusPct
+    $bPasir = $tB.Pasir * $bonusPct
+    $mB | Add-Member -MemberType NoteProperty -Name Hebel -Value (([double]$mB.Hebel) + $bHebel) -Force
+    $mB | Add-Member -MemberType NoteProperty -Name Semen -Value (([double]$mB.Semen) + $bSemen) -Force
+    $mB | Add-Member -MemberType NoteProperty -Name Pasir -Value (([double]$mB.Pasir) + $bPasir) -Force
     Add-WorkStat 'HouseSold' 1
     Add-WorkStat 'HouseIncome' $net
     Update-BuildUI
     Update-WorkStatsUI
     Update-AllUI
-    [System.Windows.Forms.MessageBox]::Show(("Rumah terjual! Harga Rp {0:N0}, pajak Rp {1:N0}, diterima Rp {2:N0}" -f $sellPrice, $tax, $net))
+    [System.Windows.Forms.MessageBox]::Show(("Rumah terjual! Harga Rp {0:N0}, pajak Rp {1:N0}, diterima Rp {2:N0}. Bonus bahan: +{3:N1} hebel, +{4:N1} semen, +{5:N1} pasir" -f $sellPrice, $tax, $net, $bHebel, $bSemen, $bPasir))
 })
 
 $btnBuildAuction.Add_Click({
