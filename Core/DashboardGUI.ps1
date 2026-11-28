@@ -1938,7 +1938,8 @@ function Update-BuildUI {
     $costHire = Get-WorkerHireCost
     $btnBuildHire.Text = "Rekrut (Rp {0:N0})" -f $costHire
     $btnBuildHire.Enabled = ([double]$Global:GameState.Player.Money -ge $costHire)
-    $btnBuildAddWorker.Enabled = $selBuilding -and ($free -gt 0)
+    $btnBuildAddWorker.Text = "Pekerja -> Rumah (Rp {0:N0})" -f (Get-WorkerHireCost)
+    $btnBuildAddWorker.Enabled = $selBuilding -and ([double]$Global:GameState.Player.Money -ge (Get-WorkerHireCost))
 
     $m = Get-Materials
     $lblMatHebel.Text = "Hebel: stok {0:N0} (Rp {1:N0}/pcs)" -f ([double]$m.Hebel), (Get-Cfg 'HebelPrice' 300.0)
@@ -1968,12 +1969,20 @@ $btnBuildAddWorker.Add_Click({
     if ($lvBuilds.SelectedItems.Count -eq 0) { return }
     $h = Get-HouseById $lvBuilds.SelectedItems[0].Tag
     if ($null -eq $h -or (Test-HouseDone $h)) { return }
-    if ((Get-FreeWorkers) -le 0) {
-        [System.Windows.Forms.MessageBox]::Show("Tidak ada pekerja siap. Rekrut pekerja dulu.")
+    $cost = Get-WorkerHireCost
+    if ([double]$Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Pengadaan 1 pekerja butuh Rp {0:N0}" -f $cost))
         return
     }
+    $Global:GameState.Player.Money -= $cost
+    $w = Get-Workers
+    $w | Add-Member -MemberType NoteProperty -Name Count -Value (([int]$w.Count) + 1) -Force
     $h | Add-Member -MemberType NoteProperty -Name Workers -Value (([int]$h.Workers) + 1) -Force
+    $h | Add-Member -MemberType NoteProperty -Name Cost -Value (([double]$h.Cost) + $cost) -Force
+    Add-WorkStat 'HouseSpend' $cost
     Update-BuildUI
+    Update-WorkStatsUI
+    Update-AllUI
 })
 
 $btnBuyHebel.Add_Click({
@@ -2088,6 +2097,7 @@ $lvBuilds.Add_SelectedIndexChanged({
 })
 # --- FUNGSI UPDATE UI UTAMA ---
 function Update-AllUI {
+    Sync-StockRows
     if ($null -ne $Global:GameState) {
         $lblCashDash.Text = "Cash: Rp " + ("{0:N2}" -f [double]$Global:GameState.Player.Money)
         $lblMenuCash.Text = "Cash: Rp " + ("{0:N0}" -f [double]$Global:GameState.Player.Money)
@@ -2222,21 +2232,29 @@ function Initialize-Table {
 }
 
 function Sync-StockRows {
-    $stocks = Load-StocksData
-    if ($null -eq $stocks -or @($stocks).Count -eq 0) { return }
-    $liveTickers = @{}
-    foreach ($s in @($stocks)) { $liveTickers[[string]$s.Ticker] = $true }
-    $rowTickers = @{}
-    foreach ($row in $dgvStocks.Rows) { if ($row.Tag) { $rowTickers[[string]$row.Tag] = $true } }
-    foreach ($tk in $liveTickers.Keys) {
-        if (-not $rowTickers.ContainsKey($tk)) {
-            $rowIndex = $dgvStocks.Rows.Add($tk, "", "", "", "", "", "", "")
-            $dgvStocks.Rows[$rowIndex].Tag = $tk
+    try {
+        $stocks = Load-StocksData
+        if ($null -eq $stocks -or @($stocks).Count -eq 0) { return }
+        $liveTickers = @{}
+        foreach ($s in @($stocks)) { $liveTickers[[string]$s.Ticker] = $true }
+        $rowTickers = @{}
+        foreach ($row in $dgvStocks.Rows) { if ($row.Tag) { $rowTickers[[string]$row.Tag] = $true } }
+        foreach ($tk in $liveTickers.Keys) {
+            if (-not $rowTickers.ContainsKey($tk)) {
+                $rowIndex = $dgvStocks.Rows.Add($tk, "", "", "", "", "", "", "")
+                $dgvStocks.Rows[$rowIndex].Tag = $tk
+                Write-Host "[STOCK] Saham baru muncul di tabel: $tk"
+            }
         }
+        $stale = @()
+        foreach ($row in $dgvStocks.Rows) { if ($row.Tag -and -not $liveTickers.ContainsKey([string]$row.Tag)) { $stale += $row } }
+        foreach ($row in $stale) {
+            Write-Host "[STOCK] Saham dihapus dari tabel: $($row.Tag)"
+            $dgvStocks.Rows.Remove($row)
+        }
+    } catch {
+        Write-Host "[STOCK][ERROR] Sync-StockRows: $($_.Exception.Message)" -ForegroundColor Yellow
     }
-    $stale = @()
-    foreach ($row in $dgvStocks.Rows) { if ($row.Tag -and -not $liveTickers.ContainsKey([string]$row.Tag)) { $stale += $row } }
-    foreach ($row in $stale) { $dgvStocks.Rows.Remove($row) }
 }
 
 function Update-AnnounceUI {
@@ -2675,7 +2693,6 @@ $timer.Add_Tick({
         Ensure-Contracts
         $Global:EngineCheckCounter++
         if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
-        Sync-StockRows
         $Global:WorkCfgCheck++
         if ($Global:WorkCfgCheck -ge 3) {
             $Global:WorkCfgCheck = 0
