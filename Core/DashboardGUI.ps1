@@ -313,7 +313,7 @@ $btnClick.Add_Click({
     $lvl = [int]$Global:GameState.Sectors.Clicker.Level
     $buff = 1.0
     if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'ClickBuffUntil') {
-        try { $until = [DateTime]::Parse($Global:GameState.Flags.ClickBuffUntil); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.ClickBuffMult } } catch {}
+        try { $until = [DateTime]::Parse($Global:GameState.Flags.ClickBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.ClickBuffMult } } catch {}
     }
     $gain = [Math]::Max(1.0, [double]$lvl) * $buff
     $Global:GameState.Player.Money += $gain
@@ -864,7 +864,7 @@ function Update-AllUI {
         
         if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'StockBuffUntil') {
             try {
-                $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil)
+                $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                 if ([DateTime]::UtcNow -lt $until) {
                     $buffActive = $true
                     $buffMult = [double]$Global:GameState.Flags.StockBuffMult
@@ -1344,7 +1344,7 @@ $timer.Add_Tick({
         $buff = 1.0
         
         if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'StockBuffUntil') {
-            try { $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.StockBuffMult } } catch {}
+            try { $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.StockBuffMult } } catch {}
         }
         
         $Global:GameState.Player.Money += $rate * $buff
