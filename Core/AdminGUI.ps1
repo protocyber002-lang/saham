@@ -175,18 +175,20 @@ foreach ($g in $GroupDefs) {
         $row = 0
         foreach ($n in @(21, 45, 90, 120)) {
             $y = 42 + $row * 34
+            $yy = $y + 3
             $rl = New-Object System.Windows.Forms.Label
             $rl.Text = "Type $n"
             $rl.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
             $rl.ForeColor = $ColorText
-            $rl.Location = New-Object System.Drawing.Point(15, $y + 3)
+            $rl.Location = New-Object System.Drawing.Point(15, $yy)
             $rl.AutoSize = $true
             $page.Controls.Add($rl)
             $col = 0
             foreach ($s in @('Cost', 'Hebel', 'Semen', 'Pasir', 'WorkHours', 'MinWorkers')) {
                 $key = ("HouseType{0}_{1}" -f $n, $s)
+                $bx = $hx[$col + 1]
                 $box = New-Object System.Windows.Forms.TextBox
-                $box.Location = New-Object System.Drawing.Point($hx[$col + 1], $y)
+                $box.Location = New-Object System.Drawing.Point($bx, $y)
                 $box.Size = New-Object System.Drawing.Size(88, 24)
                 $page.Controls.Add($box)
                 $Global:AdminBoxes[$key] = $box
@@ -198,11 +200,12 @@ foreach ($g in $GroupDefs) {
         $i = 0
         foreach ($b in $g.Baris) {
             $y = 15 + $i * 36
+            $yy = $y + 3
             $lbl = New-Object System.Windows.Forms.Label
             $lbl.Text = ("{0}  [{1}]" -f $b.D, $b.K)
             $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 9)
             $lbl.ForeColor = $ColorText
-            $lbl.Location = New-Object System.Drawing.Point(15, $y + 3)
+            $lbl.Location = New-Object System.Drawing.Point(15, $yy)
             $lbl.AutoSize = $true
             $page.Controls.Add($lbl)
             $box = New-Object System.Windows.Forms.TextBox
