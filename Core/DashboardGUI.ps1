@@ -664,6 +664,12 @@ $panelMenu.Controls.Add($btnMenuMath)
 $panelMenu.Controls.Add($btnMenuType)
 $panelMenu.Controls.Add($btnMenuBuild)
 
+# --- PANEL KANAN: KONTEN ---
+$panelContent = New-Object System.Windows.Forms.Panel
+$panelContent.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelContent.BackColor = $ColorPanel
+$splitWork.Panel2.Controls.Add($panelContent)
+
 # --- SUB-PANEL STATISTIK KERJA ---
 $panelStat = New-Object System.Windows.Forms.Panel
 $panelStat.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -706,12 +712,6 @@ $lblStatTotal.ForeColor = [System.Drawing.Color]::Orange
 $lblStatTotal.Location = New-Object System.Drawing.Point(20, 220)
 $lblStatTotal.AutoSize = $true
 $panelStat.Controls.Add($lblStatTotal)
-
-# --- PANEL KANAN: KONTEN ---
-$panelContent = New-Object System.Windows.Forms.Panel
-$panelContent.Dock = [System.Windows.Forms.DockStyle]::Fill
-$panelContent.BackColor = $ColorPanel
-$splitWork.Panel2.Controls.Add($panelContent)
 
 # --- SUB-PANEL MATEMATIKA ---
 $panelMath = New-Object System.Windows.Forms.Panel
@@ -967,7 +967,7 @@ function Test-HouseDone($h) {
 }
 
 function Get-HouseById($id) {
-    foreach ($h in (Get-Houses)) { if ($h.Id -eq $id) { return $h } }
+    foreach ($h in @(Get-Houses)) { if ($h.Id -eq $id) { return $h } }
     return $null
 }
 
@@ -978,10 +978,10 @@ function Get-HouseSellPrice($h) {
 function Update-BuildUI {
     if ($null -ne $Global:BuildEndTime) {
         $old = [PSCustomObject]@{ Id = [Guid]::NewGuid().ToString("N"); EndUtc = $Global:BuildEndTime.ToString('o'); Cost = ($Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost) }
-        $Global:GameState.Houses = @((Get-Houses) + @($old))
+        $Global:GameState.Houses = @(@(Get-Houses) + @($old))
         $Global:BuildEndTime = $null
     }
-    $houses = Get-Houses
+    $houses = @(Get-Houses)
     $selId = $null
     if ($lvBuilds.SelectedItems.Count -gt 0) { $selId = $lvBuilds.SelectedItems[0].Tag }
     $lvBuilds.BeginUpdate()
@@ -1029,7 +1029,7 @@ $btnBuildStart.Add_Click({
             EndUtc = [DateTime]::UtcNow.AddMinutes($Global:Config.BuildWaitMinutes).ToString('o')
             Cost   = $cost
         }
-        $Global:GameState.Houses = @((Get-Houses) + @($house))
+        $Global:GameState.Houses = @(@(Get-Houses) + @($house))
         Add-WorkStat 'HouseBuilt' 1
         Add-WorkStat 'HouseSpend' $cost
         Update-BuildUI
@@ -1050,7 +1050,7 @@ $btnBuildSell.Add_Click({
     }
     $sellPrice = Get-HouseSellPrice $h
     $Global:GameState.Player.Money += $sellPrice
-    $Global:GameState.Houses = @((Get-Houses) | Where-Object { $_.Id -ne $id })
+    $Global:GameState.Houses = @(@(Get-Houses) | Where-Object { $_.Id -ne $id })
     Add-WorkStat 'HouseSold' 1
     Add-WorkStat 'HouseIncome' $sellPrice
     Update-BuildUI
