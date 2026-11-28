@@ -293,6 +293,14 @@ $lblBuffInfo.Location = New-Object System.Drawing.Point(30, 290)
 $lblBuffInfo.AutoSize = $true
 $tabMain.Controls.Add($lblBuffInfo)
 
+$lblClickBuffInfo = New-Object System.Windows.Forms.Label
+$lblClickBuffInfo.Text = "Click Buff: Tidak Ada"
+$lblClickBuffInfo.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$lblClickBuffInfo.ForeColor = [System.Drawing.Color]::Orange
+$lblClickBuffInfo.Location = New-Object System.Drawing.Point(30, 325)
+$lblClickBuffInfo.AutoSize = $true
+$tabMain.Controls.Add($lblClickBuffInfo)
+
 function Create-ActionButton($text, $x, $y, $w, $h, $bgColor) {
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $text
@@ -872,8 +880,22 @@ function Update-AllUI {
                     $buffActive = $true
                     $buffMult = [double]$Global:GameState.Flags.StockBuffMult
                     $secLeft = [int](($until - [DateTime]::UtcNow).TotalSeconds)
-                    $ts = [TimeSpan]::FromSeconds($secLeft)
-                    $timeStr = "{0:00}:{1:00}:{2:00}" -f [int][Math]::Floor($ts.TotalHours), $ts.Minutes, $ts.Seconds
+                    if ($secLeft -lt 60) { $timeStr = "${secLeft}s" } else { $ts = [TimeSpan]::FromSeconds($secLeft); $timeStr = ("{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds) }
+                }
+            } catch {}
+        }
+        
+        $clickBuffMult = 1.0
+        $clickBuffActive = $false
+        $clickTimeStr = ""
+        if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'ClickBuffUntil') {
+            try {
+                $untilC = [DateTime]::Parse($Global:GameState.Flags.ClickBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                if ([DateTime]::UtcNow -lt $untilC) {
+                    $clickBuffActive = $true
+                    $clickBuffMult = [double]$Global:GameState.Flags.ClickBuffMult
+                    $secLeftC = [int](($untilC - [DateTime]::UtcNow).TotalSeconds)
+                    if ($secLeftC -lt 60) { $clickTimeStr = "${secLeftC}s" } else { $tsC = [TimeSpan]::FromSeconds($secLeftC); $clickTimeStr = ("{0}m {1:00}s" -f [int]$tsC.TotalMinutes, $tsC.Seconds) }
                 }
             } catch {}
         }
@@ -882,13 +904,20 @@ function Update-AllUI {
             $totalRate = $baseRate * $buffMult
             $lblAutoRate.Text = "Auto Income: Rp {0:N2}/s (Buff {1}x => Rp {2:N2}/s)" -f $baseRate, $buffMult, $totalRate
             $lblAutoRate.ForeColor = [System.Drawing.Color]::Orange
-            $lblBuffInfo.Text = "Stock Buff: Aktif (" + $buffMult + "x) - " + $timeStr
+            $lblBuffInfo.Text = "Stock Buff: " + $buffMult + "x (" + $timeStr + ")"
             $lblBuffStock.Text = "Buff: " + $buffMult + "x (" + $timeStr + ")"
         } else {
             $lblAutoRate.Text = "Auto Income: Rp {0:N2}/s" -f $baseRate
             $lblAutoRate.ForeColor = $ColorText
             $lblBuffInfo.Text = "Stock Buff: Tidak Ada"
             $lblBuffStock.Text = "Stock Buff: -"
+        }
+        if ($clickBuffActive) {
+            $lblClickBuffInfo.Text = "Click Buff: " + $clickBuffMult + "x (" + $clickTimeStr + ")"
+            $lblClickBuffInfo.ForeColor = [System.Drawing.Color]::Orange
+        } else {
+            $lblClickBuffInfo.Text = "Click Buff: Tidak Ada"
+            $lblClickBuffInfo.ForeColor = [System.Drawing.Color]::Gray
         }
     }
     
