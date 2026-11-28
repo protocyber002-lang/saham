@@ -54,7 +54,7 @@ $Global:ZoomLevel = 1.0
 # Load Config
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
-else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50 } }
+else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0 } }
 
 # --- KUNCI PROFIL (sama dengan TUI: satu profil satu proses) ---
 function Get-LockOwnerMessage($name, $lockPath) {
@@ -659,6 +659,13 @@ $btnMenuStat = Create-ActionButton "0. Statistik Kerja" 10 10 180 50 $ColorSucce
 $btnMenuMath = Create-ActionButton "1. Matematika" 10 70 180 50 $ColorAccent
 $btnMenuType = Create-ActionButton "2. Ketik Ulang" 10 130 180 50 $ColorAccent
 $btnMenuBuild = Create-ActionButton "3. Developer Bangunan" 10 190 180 50 $ColorAccent
+$lblMenuCash = New-Object System.Windows.Forms.Label
+$lblMenuCash.Text = "Cash: Rp 0"
+$lblMenuCash.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblMenuCash.ForeColor = $ColorSuccess
+$lblMenuCash.Location = New-Object System.Drawing.Point(10, 255)
+$lblMenuCash.AutoSize = $true
+$panelMenu.Controls.Add($lblMenuCash)
 $panelMenu.Controls.Add($btnMenuStat)
 $panelMenu.Controls.Add($btnMenuMath)
 $panelMenu.Controls.Add($btnMenuType)
@@ -766,19 +773,27 @@ $panelBuild.Visible = $false
 $panelContent.Controls.Add($panelBuild)
 
 $lblBuildInfo = New-Object System.Windows.Forms.Label
-$lblBuildInfo.Text = ("Bahan: Rp {0:N0} | Jasa: Rp {1:N0} | Waktu: {2} menit/rumah" -f $Global:Config.BuildMaterialCost, $Global:Config.BuildLaborCost, $Global:Config.BuildWaitMinutes)
-$lblBuildInfo.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblBuildInfo.Text = ("Type 21: Rp {0:N0} ({1} mnt) | Type 45: Rp {2:N0} ({3} mnt) | Type 90: Rp {4:N0} ({5} mnt) | Type 120: Rp {6:N0} ({7} mnt) | Jual +{8}%" -f `
+    $Global:Config.HouseType21_Cost, $Global:Config.HouseType21_Wait, $Global:Config.HouseType45_Cost, $Global:Config.HouseType45_Wait, `
+    $Global:Config.HouseType90_Cost, $Global:Config.HouseType90_Wait, $Global:Config.HouseType120_Cost, $Global:Config.HouseType120_Wait, $Global:Config.BuildSellMarkupPct)
+$lblBuildInfo.Font = New-Object System.Drawing.Font("Segoe UI", 11)
 $lblBuildInfo.Location = New-Object System.Drawing.Point(20, 30)
 $lblBuildInfo.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildInfo)
 
-$btnBuildStart = Create-ActionButton "Bangun Rumah" 20 70 200 40 $ColorAccent
-$panelBuild.Controls.Add($btnBuildStart)
+$btnBuildT21 = Create-ActionButton "Bangun Type 21" 20 70 125 40 $ColorAccent
+$btnBuildT45 = Create-ActionButton "Bangun Type 45" 150 70 125 40 $ColorAccent
+$btnBuildT90 = Create-ActionButton "Bangun Type 90" 280 70 125 40 $ColorAccent
+$btnBuildT120 = Create-ActionButton "Bangun Type 120" 410 70 125 40 $ColorAccent
+$panelBuild.Controls.Add($btnBuildT21)
+$panelBuild.Controls.Add($btnBuildT45)
+$panelBuild.Controls.Add($btnBuildT90)
+$panelBuild.Controls.Add($btnBuildT120)
 
 $lblBuildStatus = New-Object System.Windows.Forms.Label
 $lblBuildStatus.Text = "Status: Belum ada bangunan."
 $lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 12)
-$lblBuildStatus.Location = New-Object System.Drawing.Point(240, 80)
+$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 115)
 $lblBuildStatus.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildStatus)
 
@@ -786,13 +801,15 @@ $lvBuilds = New-Object System.Windows.Forms.ListView
 $lvBuilds.View = [System.Windows.Forms.View]::Details
 $lvBuilds.FullRowSelect = $true
 $lvBuilds.GridLines = $true
-$lvBuilds.Location = New-Object System.Drawing.Point(20, 130)
-$lvBuilds.Size = New-Object System.Drawing.Size(520, 220)
+$lvBuilds.Location = New-Object System.Drawing.Point(20, 145)
+$lvBuilds.Size = New-Object System.Drawing.Size(540, 210)
 [void]$lvBuilds.Columns.Add("No", 40)
-[void]$lvBuilds.Columns.Add("Status", 100)
-[void]$lvBuilds.Columns.Add("Sisa Waktu", 110)
-[void]$lvBuilds.Columns.Add("Biaya", 120)
-[void]$lvBuilds.Columns.Add("Harga Jual", 130)
+[void]$lvBuilds.Columns.Add("Tipe", 90)
+[void]$lvBuilds.Columns.Add("Status", 90)
+[void]$lvBuilds.Columns.Add("Sisa Waktu", 100)
+[void]$lvBuilds.Columns.Add("Biaya", 110)
+[void]$lvBuilds.Columns.Add("Keuntungan", 110)
+[void]$lvBuilds.Columns.Add("Harga Jual", 120)
 $panelBuild.Controls.Add($lvBuilds)
 
 $btnBuildSell = Create-ActionButton "Jual Terpilih" 20 365 200 40 $ColorSuccess
@@ -849,27 +866,24 @@ $btnMenuType.Add_Click({ Show-WorkPanel $panelType; Generate-TypeQuestion })
 $btnMenuBuild.Add_Click({ Show-WorkPanel $panelBuild; Update-BuildUI })
 
 function Generate-MathQuestion {
-    $lvl = [int]$Global:GameState.Sectors.Clicker.Level
-    $max = (10 + $lvl * 5)
+    $lim = [Math]::Min(4 + [int]$Global:GameState.Sectors.Clicker.Level, 12)
     $op = Get-Random -Minimum 0 -Maximum 4
     switch ($op) {
         0 {
-            $a = Get-Random -Minimum 5 -Maximum $max; $b = Get-Random -Minimum 5 -Maximum $max
+            $a = Get-Random -Minimum 2 -Maximum ($lim + 1); $b = Get-Random -Minimum 2 -Maximum ($lim + 1)
             $ans = $a + $b; $sym = "+"
         }
         1 {
-            $a = Get-Random -Minimum 5 -Maximum $max; $b = Get-Random -Minimum 5 -Maximum $max
+            $a = Get-Random -Minimum 2 -Maximum ($lim + 1); $b = Get-Random -Minimum 2 -Maximum ($lim + 1)
             if ($b -gt $a) { $t = $a; $a = $b; $b = $t }
             $ans = $a - $b; $sym = "-"
         }
         2 {
-            $lim = [Math]::Max(6, [int]($max / 10))
-            $a = Get-Random -Minimum 2 -Maximum $lim; $b = Get-Random -Minimum 2 -Maximum $lim
+            $a = Get-Random -Minimum 2 -Maximum 10; $b = Get-Random -Minimum 2 -Maximum 10
             $ans = $a * $b; $sym = "x"
         }
         3 {
-            $lim = [Math]::Max(6, [int]($max / 10))
-            $b = Get-Random -Minimum 2 -Maximum $lim; $ans = Get-Random -Minimum 2 -Maximum $lim
+            $b = Get-Random -Minimum 2 -Maximum 10; $ans = Get-Random -Minimum 2 -Maximum 10
             $a = $b * $ans; $sym = ":"
         }
     }
@@ -975,6 +989,26 @@ function Get-HouseSellPrice($h) {
     return [double]$h.Cost * (1 + ($Global:Config.BuildSellMarkupPct / 100))
 }
 
+function Build-House([string]$typeName, [double]$cost, [double]$waitMin) {
+    if ($Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show("Uang tidak cukup! Butuh Rp $cost")
+        return
+    }
+    $Global:GameState.Player.Money -= $cost
+    $house = [PSCustomObject]@{
+        Id     = [Guid]::NewGuid().ToString("N")
+        Type   = $typeName
+        EndUtc = [DateTime]::UtcNow.AddMinutes($waitMin).ToString('o')
+        Cost   = $cost
+    }
+    $Global:GameState.Houses = @(@(Get-Houses) + @($house))
+    Add-WorkStat 'HouseBuilt' 1
+    Add-WorkStat 'HouseSpend' $cost
+    Update-BuildUI
+    Update-WorkStatsUI
+    Update-AllUI
+}
+
 function Update-BuildUI {
     if ($null -ne $Global:BuildEndTime) {
         $old = [PSCustomObject]@{ Id = [Guid]::NewGuid().ToString("N"); EndUtc = $Global:BuildEndTime.ToString('o'); Cost = ($Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost) }
@@ -996,14 +1030,20 @@ function Update-BuildUI {
             $ts = (Parse-UtcSafe $h.EndUtc) - [DateTime]::UtcNow
             if ($ts.TotalSeconds -lt 60) { $sisa = "$([int][Math]::Ceiling($ts.TotalSeconds))s" } else { $sisa = "{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds }
         } else { $nDone++ }
+        $hType = "Rumah"
+        $tProp = $h.PSObject.Properties['Type']
+        if ($null -ne $tProp) { $hType = [string]$tProp.Value }
         $price = Get-HouseSellPrice $h
+        $profit = $price - [double]$h.Cost
         $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
+        [void]$item.SubItems.Add($hType)
         [void]$item.SubItems.Add($(if ($done) { "Selesai" } else { "Membangun" }))
         [void]$item.SubItems.Add($sisa)
         [void]$item.SubItems.Add(("Rp {0:N0}" -f $h.Cost))
+        [void]$item.SubItems.Add(("+Rp {0:N0}" -f $profit))
         [void]$item.SubItems.Add(("Rp {0:N0}" -f $price))
         $item.Tag = $h.Id
-        if ($done) { $item.ForeColor = [System.Drawing.Color]::Green }
+        if ($done) { $item.ForeColor = [System.Drawing.Color]::Green; $item.SubItems[5].ForeColor = [System.Drawing.Color]::Green }
         [void]$lvBuilds.Items.Add($item)
         $i++
     }
@@ -1020,25 +1060,10 @@ function Update-BuildUI {
     else { $lblBuildStatus.Text = "Status: $nBuilding membangun, $nDone selesai" }
 }
 
-$btnBuildStart.Add_Click({
-    $cost = $Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost
-    if ($Global:GameState.Player.Money -ge $cost) {
-        $Global:GameState.Player.Money -= $cost
-        $house = [PSCustomObject]@{
-            Id     = [Guid]::NewGuid().ToString("N")
-            EndUtc = [DateTime]::UtcNow.AddMinutes($Global:Config.BuildWaitMinutes).ToString('o')
-            Cost   = $cost
-        }
-        $Global:GameState.Houses = @(@(Get-Houses) + @($house))
-        Add-WorkStat 'HouseBuilt' 1
-        Add-WorkStat 'HouseSpend' $cost
-        Update-BuildUI
-        Update-WorkStatsUI
-        Update-AllUI
-    } else {
-        [System.Windows.Forms.MessageBox]::Show("Uang tidak cukup! Butuh Rp $cost")
-    }
-})
+$btnBuildT21.Add_Click({ Build-House "Type 21" $Global:Config.HouseType21_Cost $Global:Config.HouseType21_Wait })
+$btnBuildT45.Add_Click({ Build-House "Type 45" $Global:Config.HouseType45_Cost $Global:Config.HouseType45_Wait })
+$btnBuildT90.Add_Click({ Build-House "Type 90" $Global:Config.HouseType90_Cost $Global:Config.HouseType90_Wait })
+$btnBuildT120.Add_Click({ Build-House "Type 120" $Global:Config.HouseType120_Cost $Global:Config.HouseType120_Wait })
 
 $btnBuildSell.Add_Click({
     if ($lvBuilds.SelectedItems.Count -eq 0) { return }
@@ -1068,6 +1093,7 @@ $lvBuilds.Add_SelectedIndexChanged({
 function Update-AllUI {
     if ($null -ne $Global:GameState) {
         $lblCashDash.Text = "Cash: Rp " + ("{0:N2}" -f [double]$Global:GameState.Player.Money)
+        $lblMenuCash.Text = "Cash: Rp " + ("{0:N0}" -f [double]$Global:GameState.Player.Money)
         $lvl = [int]$Global:GameState.Sectors.Clicker.Level
         $lblClickLvl.Text = "Clicker Level: $lvl"
         $lblClickVal.Text = "Click Value: Rp " + ("{0:N2}" -f [Math]::Max(1.0, [double]$lvl))

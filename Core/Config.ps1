@@ -74,8 +74,18 @@ $Global:Config = @{
     MathWorkRewardBase = 1000.0   # Bonus langsung (1000 x level)
 
     # --- TAB KERJA: DEVELOPER BANGUNAN ---
-    BuildMaterialCost = 500000.0  # Harga bahan bangunan
-    BuildLaborCost    = 200000.0  # Honor tenaga kerja
-    BuildWaitMinutes  = 30.0      # Waktu tunggu bangunan (menit)
+    BuildMaterialCost = 500000.0  # Harga bahan bangunan (lama, dipakai migrasi)
+    BuildLaborCost    = 200000.0  # Honor tenaga kerja (lama, dipakai migrasi)
+    BuildWaitMinutes  = 30.0      # Waktu tunggu bangunan (menit, lama)
     BuildSellMarkupPct = 50.0     # Markup harga jual rumah (50%)
+
+    # --- JENIS RUMAH (Developer Bangunan) ---
+    HouseType21_Cost  = 500000.0
+    HouseType21_Wait  = 20.0      # menit
+    HouseType45_Cost  = 1000000.0
+    HouseType45_Wait  = 30.0
+    HouseType90_Cost  = 2500000.0
+    HouseType90_Wait  = 45.0
+    HouseType120_Cost = 5000000.0
+    HouseType120_Wait = 60.0
 }
