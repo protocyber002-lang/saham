@@ -73,6 +73,18 @@ function Get-OverrideKeys {
     return $set
 }
 
+function Format-AdminNumber([double]$v) {
+    return $v.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Convert-AdminNumber([string]$txt) {
+    $val = [double]::NaN
+    if ([double]::TryParse($txt, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$val)) { return $val }
+    $txt2 = $txt -replace ',', '.'
+    if ([double]::TryParse($txt2, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$val)) { return $val }
+    return [double]::NaN
+}
+
 function Save-WorkConfig([hashtable]$obj) {
     $lastErr = $null
     for ($i = 0; $i -lt 10; $i++) {
@@ -91,7 +103,7 @@ function Fill-Boxes {
     foreach ($k in $Global:AdminBoxes.Keys) {
         $box = $Global:AdminBoxes[$k]
         $lbl = $box.Tag
-        if ($Global:Config.ContainsKey($k)) { $box.Text = "$($Global:Config[$k])" }
+        if ($Global:Config.ContainsKey($k)) { $box.Text = Format-AdminNumber ([double]$Global:Config[$k]) }
         if ($ov.ContainsKey($k)) {
             $box.BackColor = $ColorWarn
             if ($null -ne $lbl) {
@@ -120,9 +132,9 @@ function Save-FromBoxes {
     $obj = @{}
     foreach ($k in $Global:AdminBoxes.Keys) {
         $txt = $Global:AdminBoxes[$k].Text.Trim()
-        $val = 0.0
-        if (-not [double]::TryParse($txt, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$val)) {
-            [System.Windows.Forms.MessageBox]::Show(("Nilai tidak valid untuk " + $k + ": '" + $txt + "'. Harus angka (titik = desimal)."))
+        $val = Convert-AdminNumber $txt
+        if ([double]::IsNaN($val)) {
+            [System.Windows.Forms.MessageBox]::Show(("Nilai tidak valid untuk " + $k + ": '" + $txt + "'. Harus angka (titik atau koma = desimal)."))
             return
         }
         if ($val -le 0) {
