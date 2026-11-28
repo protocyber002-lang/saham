@@ -111,7 +111,11 @@ function Add-WebReceipt($id, $status, $message) {
             } catch { $lastErr = $_; Start-Sleep -Milliseconds 100 }
         }
         Write-Host ("[WEB BELI][WARN] Gagal tulis kuitansi " + $id + ": " + $lastErr.Exception.Message) -ForegroundColor Yellow
-    } catch { Write-Host ("[WEB BELI][WARN] Gagal tulis kuitansi " + $id + ": " + $_.Exception.Message) -ForegroundColor Yellow }
+        Write-WebQueueLog "ERROR" ("Gagal tulis kuitansi " + $id + " setelah 10 percobaan: " + $lastErr.Exception.Message)
+    } catch {
+        Write-Host ("[WEB BELI][WARN] Gagal tulis kuitansi " + $id + ": " + $_.Exception.Message) -ForegroundColor Yellow
+        Write-WebQueueLog "ERROR" ("Add-WebReceipt exception untuk " + $id + ": " + $_.Exception.Message)
+    }
 }
 
 function Get-QueueOrderId($q) {
