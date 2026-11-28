@@ -22,6 +22,7 @@
         .stock-info .price { font-size: 1.2em; color: #fff; font-weight: bold; }
         .stock-info .name { font-size: 0.85em; color: #aaa; }
         .controls { display: flex; gap: 8px; }
+        .btn-del { background: #dc3545 !important; color: #fff !important; padding: 6px 8px; font-size: 0.8em; }
         button { padding: 10px 15px; border: none; border-radius: 5px; background: #00bfff; color: #000; font-weight: bold; cursor: pointer; }
         button:active { background: #0099cc; }
         #loginScreen { display: none; padding: 20px; max-width: 400px; margin: 0 auto; flex-direction: column; justify-content: center; height: 100vh; }
@@ -170,6 +171,7 @@
                         <div class="controls">
                             <button onclick="event.stopPropagation(); buy('${t}', 1)">Beli 1</button>
                             <button onclick="event.stopPropagation(); buy('${t}', 10)">Beli 10</button>
+                            <button class="btn-del" onclick="event.stopPropagation(); voteDelete('${t}')">Minta Hapus</button>
                         </div>
                     `;
                     div.onclick = () => loadChart(t, s.Name);
@@ -218,6 +220,23 @@
                 }
                 else { alert('Gagal: ' + data.message); }
                 loadStocks();
+            } catch (e) { alert('Gagal terhubung.'); }
+        }
+
+        async function voteDelete(ticker) {
+            const token = localStorage.getItem('ct_token');
+            if (!token) { alert('Login dulu.'); return; }
+            if (!confirm('Minta hapus saham ' + ticker + '? Saham dihapus jika disetujui 51% semua profil.')) return;
+            try {
+                const res = await fetch(API_BASE + 'stock_vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ ticker: ticker })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') { alert('Permintaan hapus dicatat: ' + data.votes + '/' + data.threshold + ' profil (total profil ' + data.total + '). Saham dihapus otomatis saat mencapai 51%.'); }
+                else if (data.status === 'already') { alert('Anda sudah meminta hapus ' + ticker + ': ' + data.votes + '/' + data.threshold + ' profil.'); }
+                else { alert('Gagal: ' + (data.message || 'tidak diketahui')); }
             } catch (e) { alert('Gagal terhubung.'); }
         }
 

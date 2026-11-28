@@ -377,6 +377,71 @@ while ($listener.IsListening) {
                 elseif ([string]::IsNullOrWhiteSpace((Get-DeviceProfile $devs $auth.Substring(7)))) { $respJson = '{"status":"error","message":"Login profil dulu"}'; $res.StatusCode = 403 }
                 else { $raw = Read-FileSafe $stocksPath; if ($raw) { $respJson = $raw } else { $respJson = '[]' } }
             }
+            elseif ($path -eq "/api/stock_vote" -and $req.HttpMethod -eq "POST") {
+                if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
+                else {
+                    $profName = Get-DeviceProfile $devs $auth.Substring(7)
+                    if ([string]::IsNullOrWhiteSpace($profName)) {
+                        $respJson = '{"status":"error","message":"Login profil dulu"}'
+                        $res.StatusCode = 403
+                    }
+                    else {
+                        $data = $body | ConvertFrom-Json
+                        $ticker = (([string]$data.ticker).ToUpper()) -replace '[^A-Z0-9]', ''
+                        $tickerExists = $false
+                        if ($ticker) {
+                            $rawS = Read-FileSafe $stocksPath
+                            if (-not [string]::IsNullOrWhiteSpace($rawS)) {
+                                try { foreach ($s in @(($rawS | ConvertFrom-Json))) { if ($s.Ticker -eq $ticker) { $tickerExists = $true; break } } } catch { }
+                            }
+                        }
+                        if (-not $tickerExists) {
+                            $respJson = '{"status":"error","message":"Saham tidak ditemukan"}'
+                            $res.StatusCode = 404
+                        }
+                        else {
+                            $stockVotesPath = Join-Path $root "Data\stock_votes.json"
+                            $votes = @{}
+                            $rawV = Read-FileSafe $stockVotesPath
+                            if (-not [string]::IsNullOrWhiteSpace($rawV)) {
+                                try {
+                                    $objV = ($rawV -replace "^\uFEFF", "") | ConvertFrom-Json
+                                    foreach ($p in $objV.PSObject.Properties) {
+                                        $listV = @()
+                                        if ($null -ne $p.Value) { foreach ($v in @($p.Value)) { $listV += [string]$v } }
+                                        $votes[[string]$p.Name] = $listV
+                                    }
+                                } catch { }
+                            }
+                            $curList = @()
+                            if ($votes.ContainsKey($ticker)) { $curList = @($votes[$ticker]) }
+                            if ($curList -contains $profName) {
+                                $profCountNow = @(Get-ChildItem (Join-Path $root "Data\profiles") -Filter "*.json" -ErrorAction SilentlyContinue).Count
+                                $thresholdNow = if ($profCountNow -ge 1) { [Math]::Ceiling(0.51 * $profCountNow) } else { 1 }
+                                $respJson = @{ status = "already"; ticker = $ticker; votes = $curList.Count; threshold = $thresholdNow; total = $profCountNow } | ConvertTo-Json -Compress
+                            }
+                            else {
+                                $curList += $profName
+                                $votes[$ticker] = $curList
+                                $saved = $false
+                                for ($vi = 0; $vi -lt 10 -and -not $saved; $vi++) {
+                                    try {
+                                        $tmpV = "$stockVotesPath.tmp"
+                                        [System.IO.File]::WriteAllText($tmpV, ($votes | ConvertTo-Json -Depth 5 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                                        if (Test-Path $stockVotesPath) { Remove-Item $stockVotesPath -Force -ErrorAction SilentlyContinue }
+                                        Move-Item $tmpV $stockVotesPath -Force
+                                        $saved = $true
+                                    } catch { Start-Sleep -Milliseconds 100 }
+                                }
+                                $profCountNow = @(Get-ChildItem (Join-Path $root "Data\profiles") -Filter "*.json" -ErrorAction SilentlyContinue).Count
+                                $thresholdNow = if ($profCountNow -ge 1) { [Math]::Ceiling(0.51 * $profCountNow) } else { 1 }
+                                Write-Log -Tag "STOCK" -Level "OK" -Message ("Profil '{0}' meminta hapus saham {1} ({2}/{3} profil)" -f $profName, $ticker, $curList.Count, $thresholdNow)
+                                $respJson = @{ status = "ok"; ticker = $ticker; votes = $curList.Count; threshold = $thresholdNow; total = $profCountNow } | ConvertTo-Json -Compress
+                            }
+                        }
+                    }
+                }
+            }
             elseif ($path -eq "/api/buy" -and $req.HttpMethod -eq "POST") {
                 if (-not $isValid) { $respJson = '{"status":"error","message":"Unauthorized"}'; $res.StatusCode = 401 }
                 else {

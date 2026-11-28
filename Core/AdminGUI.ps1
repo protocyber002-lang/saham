@@ -5,6 +5,10 @@ Add-Type -AssemblyName System.Drawing
 $AdminRoot = Split-Path -Parent $PSScriptRoot
 $AdminWorkCfgPath = Join-Path $AdminRoot "Data\work_config.json"
 $AdminConfigPath = Join-Path $AdminRoot "Core\Config.ps1"
+$AdminStocksPath = Join-Path $AdminRoot "Data\stocks.json"
+$AdminVotesPath = Join-Path $AdminRoot "Data\stock_votes.json"
+$AdminAnnouncePath = Join-Path $AdminRoot "Data\announcements.json"
+$AdminProfilesDir = Join-Path $AdminRoot "Data\profiles"
 
 $Global:Config = @{}
 if (Test-Path $AdminConfigPath) { . $AdminConfigPath }
@@ -55,6 +59,7 @@ $GroupDefs = @(
         @{ K = 'Facility_Rooftop_Cost'; D = 'Rooftop: biaya pasang (Rp)' }
         @{ K = 'Facility_Rooftop_RentPct'; D = 'Rooftop: sewa naik (%)' }
     ) }
+    @{ Nama = "Saham"; Baris = @() }
 )
 
 $Global:AdminBoxes = @{}
@@ -96,6 +101,53 @@ function Save-WorkConfig([hashtable]$obj) {
         } catch { $lastErr = $_; Start-Sleep -Milliseconds 100 }
     }
     [System.Windows.Forms.MessageBox]::Show(("Gagal menulis file: " + $lastErr.Exception.Message))
+}
+
+function Read-AdminStocksRaw {
+    try {
+        if (Test-Path $AdminStocksPath) {
+            $raw = [System.IO.File]::ReadAllText($AdminStocksPath) -replace "^\uFEFF", ""
+            if (-not [string]::IsNullOrWhiteSpace($raw)) { return @($raw | ConvertFrom-Json) }
+        }
+    } catch { }
+    return @()
+}
+
+function Save-AdminStocksRaw($arr) {
+    for ($i = 0; $i -lt 10; $i++) {
+        try {
+            $tmp = "$AdminStocksPath.tmp"
+            [System.IO.File]::WriteAllText($tmp, ($arr | ConvertTo-Json -Depth 6 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+            if (Test-Path $AdminStocksPath) { Remove-Item $AdminStocksPath -Force -ErrorAction SilentlyContinue }
+            Move-Item $tmp $AdminStocksPath -Force
+            return $true
+        } catch { Start-Sleep -Milliseconds 100 }
+    }
+    return $false
+}
+
+function Get-AdminStocks {
+    $arr = @()
+    foreach ($s in (Read-AdminStocksRaw)) {
+        $arr += @{ Ticker = [string]$s.Ticker; Name = [string]$s.Name; Price = [double]$s.Price }
+    }
+    return $arr
+}
+
+function Add-AdminAnnounce($msg) {
+    try {
+        $items = @()
+        if (Test-Path $AdminAnnouncePath) {
+            $raw = [System.IO.File]::ReadAllText($AdminAnnouncePath) -replace "^\uFEFF", ""
+            if (-not [string]::IsNullOrWhiteSpace($raw)) { try { $items = @($raw | ConvertFrom-Json) } catch { $items = @() } }
+        }
+        $items += @{ Time = [DateTime]::UtcNow.ToString("o"); Message = $msg }
+        while (@($items).Count -gt 50) { $items = @($items[1..(@($items).Count - 1)]) }
+        $tmp = "$AdminAnnouncePath.tmp"
+        [System.IO.File]::WriteAllText($tmp, ($items | ConvertTo-Json -Depth 4 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+        if (Test-Path $AdminAnnouncePath) { Remove-Item $AdminAnnouncePath -Force -ErrorAction SilentlyContinue }
+        Move-Item $tmp $AdminAnnouncePath -Force
+    } catch { }
 }
 
 function Fill-Boxes {
@@ -150,7 +202,7 @@ function Save-FromBoxes {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Admin ClickTycoonIdle - Atur Tab Kerja"
+$form.Text = "Admin ClickTycoonIdle - Tab Kerja & Saham"
 $form.Size = New-Object System.Drawing.Size(740, 640)
 $form.BackColor = $ColorBg
 $form.StartPosition = "CenterScreen"
@@ -170,13 +222,117 @@ $tabs.Location = New-Object System.Drawing.Point(12, 34)
 $tabs.Size = New-Object System.Drawing.Size(700, 500)
 $form.Controls.Add($tabs)
 
+$pageSaham = $null
+
 foreach ($g in $GroupDefs) {
     $page = New-Object System.Windows.Forms.TabPage
     $page.Text = $g.Nama
     $page.BackColor = $ColorPanel
     $tabs.TabPages.Add($page)
 
-    if ($g.Nama -eq "Rumah") {
+    if ($g.Nama -eq "Saham") {
+        $pageSaham = $page
+
+        $lblAt = New-Object System.Windows.Forms.Label
+        $lblAt.Text = "Ticker:"
+        $lblAt.Location = New-Object System.Drawing.Point(15, 21)
+        $lblAt.AutoSize = $true
+        $page.Controls.Add($lblAt)
+        $txtNewTicker = New-Object System.Windows.Forms.TextBox
+        $txtNewTicker.Location = New-Object System.Drawing.Point(70, 15)
+        $txtNewTicker.Size = New-Object System.Drawing.Size(70, 24)
+        $txtNewTicker.CharacterCasing = [System.Windows.Forms.CharacterCasing]::Upper
+        $page.Controls.Add($txtNewTicker)
+
+        $lblAn = New-Object System.Windows.Forms.Label
+        $lblAn.Text = "Nama:"
+        $lblAn.Location = New-Object System.Drawing.Point(160, 21)
+        $lblAn.AutoSize = $true
+        $page.Controls.Add($lblAn)
+        $txtNewName = New-Object System.Windows.Forms.TextBox
+        $txtNewName.Location = New-Object System.Drawing.Point(210, 15)
+        $txtNewName.Size = New-Object System.Drawing.Size(220, 24)
+        $page.Controls.Add($txtNewName)
+
+        $lblAp = New-Object System.Windows.Forms.Label
+        $lblAp.Text = "Harga awal (Rp):"
+        $lblAp.Location = New-Object System.Drawing.Point(445, 21)
+        $lblAp.AutoSize = $true
+        $page.Controls.Add($lblAp)
+        $txtNewPrice = New-Object System.Windows.Forms.TextBox
+        $txtNewPrice.Location = New-Object System.Drawing.Point(555, 15)
+        $txtNewPrice.Size = New-Object System.Drawing.Size(90, 24)
+        $page.Controls.Add($txtNewPrice)
+
+        $btnAddStock = New-Object System.Windows.Forms.Button
+        $btnAddStock.Text = "Tambah Saham"
+        $btnAddStock.Location = New-Object System.Drawing.Point(15, 48)
+        $btnAddStock.Size = New-Object System.Drawing.Size(140, 30)
+        $btnAddStock.BackColor = $ColorSuccess
+        $btnAddStock.ForeColor = [System.Drawing.Color]::White
+        $btnAddStock.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $page.Controls.Add($btnAddStock)
+
+        $lblStockNote = New-Object System.Windows.Forms.Label
+        $lblStockNote.Text = "Saham baru langsung aktif di MarketEngine (±1 detik) dan diumumkan di Dashboard Utama tiap profil."
+        $lblStockNote.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+        $lblStockNote.ForeColor = [System.Drawing.Color]::Gray
+        $lblStockNote.Location = New-Object System.Drawing.Point(170, 56)
+        $lblStockNote.AutoSize = $true
+        $page.Controls.Add($lblStockNote)
+
+        $lblList = New-Object System.Windows.Forms.Label
+        $lblList.Text = "Daftar saham (pilih utk edit nama):"
+        $lblList.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+        $lblList.ForeColor = $ColorAccent
+        $lblList.Location = New-Object System.Drawing.Point(15, 95)
+        $lblList.AutoSize = $true
+        $page.Controls.Add($lblList)
+
+        $lstStocks = New-Object System.Windows.Forms.ListBox
+        $lstStocks.Location = New-Object System.Drawing.Point(15, 118)
+        $lstStocks.Size = New-Object System.Drawing.Size(280, 240)
+        $page.Controls.Add($lstStocks)
+
+        $lblRen = New-Object System.Windows.Forms.Label
+        $lblRen.Text = "Saham yang sudah ada HANYA bisa edit NAMA:"
+        $lblRen.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+        $lblRen.ForeColor = $ColorText
+        $lblRen.Location = New-Object System.Drawing.Point(315, 121)
+        $lblRen.AutoSize = $true
+        $page.Controls.Add($lblRen)
+
+        $txtRename = New-Object System.Windows.Forms.TextBox
+        $txtRename.Location = New-Object System.Drawing.Point(315, 145)
+        $txtRename.Size = New-Object System.Drawing.Size(220, 24)
+        $page.Controls.Add($txtRename)
+
+        $btnRenameStock = New-Object System.Windows.Forms.Button
+        $btnRenameStock.Text = "Simpan Nama"
+        $btnRenameStock.Location = New-Object System.Drawing.Point(315, 178)
+        $btnRenameStock.Size = New-Object System.Drawing.Size(140, 30)
+        $btnRenameStock.BackColor = $ColorAccent
+        $btnRenameStock.ForeColor = [System.Drawing.Color]::White
+        $btnRenameStock.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $page.Controls.Add($btnRenameStock)
+
+        $lblDelRule = New-Object System.Windows.Forms.Label
+        $lblDelRule.Text = "Saham dihapus otomatis jika 51% semua profil memintanya\r\n(tombol 'Minta Hapus' di web, wajib login profil)."
+        $lblDelRule.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+        $lblDelRule.ForeColor = [System.Drawing.Color]::Gray
+        $lblDelRule.Location = New-Object System.Drawing.Point(315, 225)
+        $lblDelRule.AutoSize = $true
+        $page.Controls.Add($lblDelRule)
+
+        $lblVotes = New-Object System.Windows.Forms.Label
+        $lblVotes.Text = ""
+        $lblVotes.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+        $lblVotes.ForeColor = $ColorWarn
+        $lblVotes.Location = New-Object System.Drawing.Point(15, 375)
+        $lblVotes.Size = New-Object System.Drawing.Size(660, 90)
+        $page.Controls.Add($lblVotes)
+    }
+    elseif ($g.Nama -eq "Rumah") {
         $heads = @("Tipe", "Harga Jual", "Hebel", "Semen", "Pasir", "Jam Kerja", "Min Pekerja")
         $hx = @(15, 100, 195, 290, 385, 480, 575)
         for ($c = 0; $c -lt $heads.Count; $c++) {
@@ -253,8 +409,120 @@ function Create-AdminButton($text, $x, $w, $bg) {
     return $btn
 }
 
+function Update-StockVotesUI {
+    $profCount = 0
+    try { $profCount = @(Get-ChildItem $AdminProfilesDir -Filter "*.json" -ErrorAction SilentlyContinue).Count } catch { }
+    $threshold = 0
+    if ($profCount -ge 1) { $threshold = [Math]::Ceiling(0.51 * $profCount) }
+    $voteCounts = @{}
+    try {
+        if (Test-Path $AdminVotesPath) {
+            $rawV = [System.IO.File]::ReadAllText($AdminVotesPath) -replace "^\uFEFF", ""
+            if (-not [string]::IsNullOrWhiteSpace($rawV)) {
+                $objV = $rawV | ConvertFrom-Json
+                foreach ($p in $objV.PSObject.Properties) { $voteCounts[[string]$p.Name] = @($p.Value).Count }
+            }
+        }
+    } catch { }
+    $lines = @("Profil terdaftar: $profCount  |  Syarat hapus: $threshold suara (51%)")
+    $hasVote = $false
+    foreach ($k in $voteCounts.Keys) {
+        if ($voteCounts[$k] -gt 0) { $hasVote = $true; $lines += ("- {0}: {1}/{2} suara" -f $k, $voteCounts[$k], $threshold) }
+    }
+    if (-not $hasVote) { $lines += "Belum ada permintaan hapus." }
+    $lblVotes.Text = ($lines -join [Environment]::NewLine)
+}
+
+function Update-StockTabUI {
+    $lstStocks.Items.Clear()
+    foreach ($s in (Get-AdminStocks)) { [void]$lstStocks.Items.Add(($s.Ticker + "  -  " + $s.Name)) }
+    Update-StockVotesUI
+}
+
+$btnAddStock.Add_Click({
+    $ticker = $txtNewTicker.Text.Trim().ToUpper()
+    $name = $txtNewName.Text.Trim()
+    $price = Convert-AdminNumber $txtNewPrice.Text.Trim()
+    if ($ticker -notmatch '^[A-Z0-9]{1,8}$') { [void][System.Windows.Forms.MessageBox]::Show("Ticker hanya huruf/angka, maks 8 karakter."); return }
+    if (-not $name) { [void][System.Windows.Forms.MessageBox]::Show("Nama tidak boleh kosong."); return }
+    if ($name.Length -gt 40) { $name = $name.Substring(0, 40) }
+    if ([double]::IsNaN($price) -or $price -le 0) { [void][System.Windows.Forms.MessageBox]::Show("Harga awal harus angka > 0 (terima titik/koma desimal)."); return }
+    $stocks = Read-AdminStocksRaw
+    foreach ($s in $stocks) { if ($s.Ticker.ToUpper() -eq $ticker) { [void][System.Windows.Forms.MessageBox]::Show("Saham $ticker sudah ada."); return } }
+    $hist = @()
+    $p = $price
+    $nowS = [DateTime]::Now
+    for ($i = 60; $i -ge 1; $i--) {
+        $t = $nowS.AddSeconds(-$i * 5)
+        $p = $p + ((Get-Random -Minimum -20 -Maximum 21) / 100.0)
+        if ($p -lt 1.0) { $p = 1.0 }
+        $hist += @{ Time = $t.ToString("o"); Price = [Math]::Round($p, 2) }
+    }
+    $newS = @{ Ticker = $ticker; Name = $name; Price = [Math]::Round($p, 2); History = $hist; Trend = 0; TrendTimeLeft = 0 }
+    $saved = $false
+    for ($tryI = 0; $tryI -lt 5 -and -not $saved; $tryI++) {
+        if (Save-AdminStocksRaw (@($stocks) + @($newS))) {
+            Start-Sleep -Milliseconds 300
+            foreach ($s in (Read-AdminStocksRaw)) { if ($s.Ticker -eq $ticker) { $saved = $true } }
+        }
+    }
+    if ($saved) {
+        Add-AdminAnnounce ("Saham baru: {0} ({1}) - harga awal Rp {2}" -f $name, $ticker, [Math]::Round($p, 2))
+        $txtNewTicker.Text = ""; $txtNewName.Text = ""; $txtNewPrice.Text = ""
+        Update-StockTabUI
+        [void][System.Windows.Forms.MessageBox]::Show("Saham $ticker ditambahkan. Pengumuman tampil di Dashboard Utama tiap profil.")
+    } else {
+        [void][System.Windows.Forms.MessageBox]::Show("Gagal menulis stocks.json (bisa karena MarketEngine sedang menulis; coba lagi).")
+    }
+})
+
+$btnRenameStock.Add_Click({
+    $sel = $lstStocks.SelectedItem
+    if (-not $sel) { [void][System.Windows.Forms.MessageBox]::Show("Pilih saham dulu di daftar."); return }
+    $ticker = ([string]$sel).Split(" ")[0]
+    $newName = $txtRename.Text.Trim()
+    if (-not $newName) { [void][System.Windows.Forms.MessageBox]::Show("Nama baru tidak boleh kosong."); return }
+    if ($newName.Length -gt 40) { $newName = $newName.Substring(0, 40) }
+    $oldName = ""
+    $found = $false
+    foreach ($s in (Read-AdminStocksRaw)) { if ($s.Ticker -eq $ticker) { $oldName = [string]$s.Name; $found = $true } }
+    if (-not $found) { [void][System.Windows.Forms.MessageBox]::Show("Saham $ticker tidak ditemukan."); return }
+    if ($newName -eq $oldName) { [void][System.Windows.Forms.MessageBox]::Show("Nama tidak berubah."); return }
+    $saved = $false
+    for ($tryI = 0; $tryI -lt 5 -and -not $saved; $tryI++) {
+        $cur = Read-AdminStocksRaw
+        foreach ($s in $cur) { if ($s.Ticker -eq $ticker) { $s.Name = $newName } }
+        if (Save-AdminStocksRaw $cur) {
+            Start-Sleep -Milliseconds 300
+            foreach ($s in (Read-AdminStocksRaw)) { if ($s.Ticker -eq $ticker -and $s.Name -eq $newName) { $saved = $true } }
+        }
+    }
+    if ($saved) {
+        Add-AdminAnnounce ("Saham {0} berganti nama: {1} -> {2}" -f $ticker, $oldName, $newName)
+        Update-StockTabUI
+        [void][System.Windows.Forms.MessageBox]::Show("Nama saham $ticker diperbarui. Pengumuman tampil di Dashboard Utama tiap profil.")
+    } else {
+        [void][System.Windows.Forms.MessageBox]::Show("Gagal menulis stocks.json (bisa karena MarketEngine sedang menulis; coba lagi).")
+    }
+})
+
+$lstStocks.Add_SelectedIndexChanged({
+    $sel = $lstStocks.SelectedItem
+    if ($sel) {
+        $tk = ([string]$sel).Split(" ")[0]
+        foreach ($s in (Get-AdminStocks)) { if ($s.Ticker -eq $tk) { $txtRename.Text = $s.Name } }
+    }
+})
+
+$stockTimer = New-Object System.Windows.Forms.Timer
+$stockTimer.Interval = 1000
+$stockTimer.Add_Tick({
+    try { if ($null -ne $pageSaham -and $tabs.SelectedTab -eq $pageSaham) { Update-StockVotesUI } } catch { }
+})
+$stockTimer.Start()
+
 $btnReload = Create-AdminButton "Muat Ulang" 0 120 $ColorAccent
-$btnReload.Add_Click({ Reload-Config })
+$btnReload.Add_Click({ Reload-Config; Update-StockTabUI })
 $panelBottom.Controls.Add($btnReload)
 
 $btnSave = Create-AdminButton "Simpan" 130 120 $ColorSuccess
@@ -278,5 +546,6 @@ $lblStatus.AutoSize = $true
 $panelBottom.Controls.Add($lblStatus)
 
 Fill-Boxes
+Update-StockTabUI
 [void]$form.ShowDialog()
 $form.Dispose()
