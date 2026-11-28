@@ -66,6 +66,19 @@ function Find-JsonNodesDeep($node, [string[]]$propNames) {
     return $found
 }
 
+function Write-QueueAtomic($path, $text) {
+    $lastErr = $null
+    for ($i = 0; $i -lt 10; $i++) {
+        try {
+            $tmp = "$path.tmp"
+            [System.IO.File]::WriteAllText($tmp, $text, [System.Text.Encoding]::UTF8)
+            Move-Item $tmp $path -Force
+            return
+        } catch { $lastErr = $_; Start-Sleep -Milliseconds 100 }
+    }
+    Write-WebQueueLog "ERROR" ("Gagal tulis antrian: " + $lastErr.Exception.Message)
+}
+
 function Add-WebReceipt($id, $status, $message) {
     $receiptsPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\receipts.json'))
     try {
@@ -171,7 +184,7 @@ function Process-WebQueue {
                 Write-WebQueueLog "INFO" ("Antrian berisi {0} order utk profil '{1}' - monitor ini '{2}', dilewati" -f $queue.Count, $profiles, $activeProfile)
             }
             if ($queue.Count -ne $topCount) {
-                ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8
+                Write-QueueAtomic $queuePath (ConvertTo-Json -InputObject @($queue) -Depth 5 -Compress)
             }
             return
         }
@@ -222,8 +235,8 @@ function Process-WebQueue {
         }
 
         $toWrite = @($remaining) + @($heldBack)
-        if ($toWrite.Count -eq 0) { [System.IO.File]::WriteAllText($queuePath, '[]', [System.Text.Encoding]::UTF8) }
-        else { ConvertTo-Json -InputObject @($toWrite) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8 }
+        if ($toWrite.Count -eq 0) { Write-QueueAtomic $queuePath '[]' }
+        else { Write-QueueAtomic $queuePath (ConvertTo-Json -InputObject @($toWrite) -Depth 5 -Compress) }
     } catch {
         Write-Host ("[WEB QUEUE][ERROR] Process-WebQueue: " + $_.Exception.Message) -ForegroundColor Yellow
         Write-WebQueueLog "ERROR" ("Process-WebQueue: " + $_.Exception.Message)
@@ -285,6 +298,7 @@ function Start-Engine {
 
     $interactive = $true
     try { [void][Console]::KeyAvailable } catch { $interactive = $false }
+    if ($interactive) { try { [Console]::TreatControlCAsInput = $true } catch { } }
 
     try {
         while ($running) {
@@ -320,6 +334,7 @@ function Start-Engine {
             Start-Sleep -Milliseconds 50
         }
     } finally {
+        try { [Console]::TreatControlCAsInput = $false } catch { }
         try { Record-Session 'Exit' } catch {}
         try { SaveSystem.Save } catch {}
         try { Release-ProfileLock } catch {}
