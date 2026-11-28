@@ -1055,7 +1055,6 @@ function Update-BuildUI {
         if ($null -ne $h -and (Test-HouseDone $h)) { $selDone = $true }
     }
     $btnBuildSell.Enabled = $selDone
-    $btnBuildStart.Enabled = $true
     if ($houses.Count -eq 0) { $lblBuildStatus.Text = "Status: Belum ada bangunan." }
     else { $lblBuildStatus.Text = "Status: $nBuilding membangun, $nDone selesai" }
 }
