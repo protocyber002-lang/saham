@@ -1032,7 +1032,7 @@ function Update-BuildUI {
         } else { $nDone++ }
         $hType = "Rumah"
         $tProp = $h.PSObject.Properties['Type']
-        if ($null -ne $tProp) { $hType = [string]$tProp.Value }
+        if ($null -ne $tProp -and -not [string]::IsNullOrWhiteSpace([string]$tProp.Value)) { $hType = "Rumah $([string]$tProp.Value)" }
         $price = Get-HouseSellPrice $h
         $profit = $price - [double]$h.Cost
         $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
