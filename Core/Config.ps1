@@ -88,4 +88,17 @@ $Global:Config = @{
     HouseType90_Wait  = 45.0
     HouseType120_Cost = 5000000.0
     HouseType120_Wait = 60.0
+
+    # --- KONTRAK HARIAN ---
+    ContractRewardBase  = 5000.0    # hadiah dasar per kontrak (x RewardMult)
+
+    # --- LELANG RUMAH ---
+    AuctionDurationSec  = 30.0      # durasi lelang (detik)
+    AuctionMaxMarkupPct = 120.0     # markup maksimum saat lelang (%)
+
+    # --- PEKERJA ---
+    WorkerBaseIncome    = 1.0       # Rp/dtk per pekerja per level
+    WorkerBaseCost      = 25000.0   # harga rekrut pekerja pertama
+    WorkerCostGrowth    = 1.35      # harga rekrut berikutnya = base x growth^jumlah
+    WorkerXpPerLevel    = 10.0      # XP aktif kerja untuk naik 1 level
 }
