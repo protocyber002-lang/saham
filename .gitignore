@@ -2,6 +2,7 @@
 Data/market.log
 Data/queue.json
 Data/receipts.json
+Data/web_queue_tui.log
 
 # File lock & backup otomatis
 *.lock

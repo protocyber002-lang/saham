@@ -41,6 +41,14 @@ function Invoke-ModuleHook($hooks, $hookName, [object[]]$args2 = @()) {
 # --- FUNGSI SINKRONISASI WEB KE TUI ---
 $script:WebReceiptIds = New-Object System.Collections.Generic.List[string]
 
+function Write-WebQueueLog($level, $message) {
+    try {
+        $logPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\web_queue_tui.log'))
+        $line = "[{0}] [{1}] {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $level, $message
+        [System.IO.File]::AppendAllText($logPath, $line + [Environment]::NewLine, [System.Text.Encoding]::UTF8)
+    } catch { }
+}
+
 function Add-WebReceipt($id, $status, $message) {
     $receiptsPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Data\receipts.json'))
     try {
@@ -118,6 +126,7 @@ function Process-WebQueue {
             else { $remaining += $q }
         }
         if ($mine.Count -eq 0) { return }
+        Write-WebQueueLog "INFO" ("Antrian diterima: {0} order utk profil '{1}'" -f $mine.Count, $activeProfile)
 
         if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState.Portfolio = @{} }
         if (-not $Global:GameState.Player.ContainsKey('Money')) { $Global:GameState.Player.Money = 0.0 }
@@ -132,6 +141,7 @@ function Process-WebQueue {
             $stock = $stocks | Where-Object { $_.Ticker -eq [string]$q.Ticker } | Select-Object -First 1
             if (-not $stock -or $qty -lt 1 -or $qty -gt 1000) {
                 Add-WebReceipt $id "Failed" "Ticker/qty tidak valid"
+                Write-WebQueueLog "WARN" ("Order {0} gagal: ticker/qty tidak valid ({1} x{2})" -f $id.Substring(0, [Math]::Min(8, $id.Length)), $q.Ticker, $qty)
                 continue
             }
             $cost = $stock.Price * $qty
@@ -144,11 +154,13 @@ function Process-WebQueue {
                 $port.AvgPrice = ($oldTotal + $cost) / $port.Shares
                 $Global:GameState.Flags['LastClickMsg'] = ("[WEB] Sukses beli $qty lembar " + $q.Ticker + " @ Rp {0:N2}" -f $stock.Price)
                 Add-WebReceipt $id "Executed" ("Beli " + $qty + " lembar " + $q.Ticker + " tercatat di TUI")
+                Write-WebQueueLog "OK" ("Profil '{0}' membeli {1} lembar {2} (order {3})" -f $activeProfile, $qty, $q.Ticker, $id.Substring(0, [Math]::Min(8, $id.Length)))
                 try { SaveSystem.Save } catch {}
             } else {
                 if (-not ($script:WebReceiptIds.Contains($id))) {
                     $script:WebReceiptIds.Add($id)
                     Add-WebReceipt $id "Held" "Uang belum cukup - order ditahan sampai uang cukup"
+                    Write-WebQueueLog "WARN" ("Order {0} ditahan: uang belum cukup ({1} x{2}, butuh Rp {3:N0})" -f $id.Substring(0, [Math]::Min(8, $id.Length)), $q.Ticker, $qty, $cost)
                 }
                 $heldBack += $q
             }
@@ -157,7 +169,10 @@ function Process-WebQueue {
         $toWrite = @($remaining) + @($heldBack)
         if ($toWrite.Count -eq 0) { [System.IO.File]::WriteAllText($queuePath, '[]', [System.Text.Encoding]::UTF8) }
         else { ConvertTo-Json -InputObject @($toWrite) -Depth 5 -Compress | Set-Content $queuePath -Encoding UTF8 }
-    } catch { Write-Host ("[WEB QUEUE][ERROR] Process-WebQueue: " + $_.Exception.Message) -ForegroundColor Yellow }
+    } catch {
+        Write-Host ("[WEB QUEUE][ERROR] Process-WebQueue: " + $_.Exception.Message) -ForegroundColor Yellow
+        Write-WebQueueLog "ERROR" ("Process-WebQueue: " + $_.Exception.Message)
+    }
     finally { if ($lockFs) { try { $lockFs.Close() } catch {} } }
 }
 
