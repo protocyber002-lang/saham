@@ -4,6 +4,7 @@ Data/queue.json
 Data/receipts.json
 Data/web_queue_tui.log
 Data/house_market.json
+Data/work_config.json
 
 # File lock & backup otomatis
 *.lock

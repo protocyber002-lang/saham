@@ -130,3 +130,30 @@ $Global:Config = @{
     Facility_Rooftop_Cost    = 400000.0
     Facility_Rooftop_RentPct = 35.0
 }
+
+# --- OVERRIDE TAB KERJA dari Data\work_config.json (diedit via AdminGUI) ---
+function Import-WorkConfigOverride {
+    param($Target, [string]$Path)
+    $applied = 0
+    try {
+        if (Test-Path $Path) {
+            $rawW = [System.IO.File]::ReadAllText($Path)
+            if (-not [string]::IsNullOrWhiteSpace($rawW)) {
+                $wc = $rawW -replace "^\uFEFF", "" | ConvertFrom-Json
+                foreach ($p in $wc.PSObject.Properties) {
+                    if ($Target.ContainsKey($p.Name)) {
+                        try { $Target[$p.Name] = [double]$p.Value; $applied++ } catch { }
+                    }
+                }
+            }
+        }
+    } catch { }
+    return $applied
+}
+
+$Global:ConfigDefaults = $Global:Config.Clone()
+$cfgRoot = ""
+try { $cfgRoot = Split-Path -Parent $PSScriptRoot } catch { }
+if ([string]::IsNullOrEmpty($cfgRoot)) { $cfgRoot = (Get-Location).Path }
+$Global:WorkConfigPath = Join-Path $cfgRoot "Data\work_config.json"
+try { [void](Import-WorkConfigOverride -Target $Global:Config -Path $Global:WorkConfigPath) } catch { }
