@@ -655,12 +655,57 @@ $panelMenu.Dock = [System.Windows.Forms.DockStyle]::Fill
 $panelMenu.BackColor = $ColorBg
 $splitWork.Panel1.Controls.Add($panelMenu)
 
-$btnMenuMath = Create-ActionButton "1. Matematika" 10 10 180 50 $ColorAccent
-$btnMenuType = Create-ActionButton "2. Ketik Ulang" 10 70 180 50 $ColorAccent
-$btnMenuBuild = Create-ActionButton "3. Developer Bangunan" 10 130 180 50 $ColorAccent
+$btnMenuStat = Create-ActionButton "0. Statistik Kerja" 10 10 180 50 $ColorSuccess
+$btnMenuMath = Create-ActionButton "1. Matematika" 10 70 180 50 $ColorAccent
+$btnMenuType = Create-ActionButton "2. Ketik Ulang" 10 130 180 50 $ColorAccent
+$btnMenuBuild = Create-ActionButton "3. Developer Bangunan" 10 190 180 50 $ColorAccent
+$panelMenu.Controls.Add($btnMenuStat)
 $panelMenu.Controls.Add($btnMenuMath)
 $panelMenu.Controls.Add($btnMenuType)
 $panelMenu.Controls.Add($btnMenuBuild)
+
+# --- SUB-PANEL STATISTIK KERJA ---
+$panelStat = New-Object System.Windows.Forms.Panel
+$panelStat.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelStat.Visible = $false
+$panelContent.Controls.Add($panelStat)
+
+$lblStatTitle = New-Object System.Windows.Forms.Label
+$lblStatTitle.Text = "Statistik Kerja"
+$lblStatTitle.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
+$lblStatTitle.ForeColor = $ColorSuccess
+$lblStatTitle.Location = New-Object System.Drawing.Point(20, 30)
+$lblStatTitle.AutoSize = $true
+$panelStat.Controls.Add($lblStatTitle)
+
+$lblStatMath = New-Object System.Windows.Forms.Label
+$lblStatMath.Text = "Matematika: -"
+$lblStatMath.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblStatMath.Location = New-Object System.Drawing.Point(20, 100)
+$lblStatMath.AutoSize = $true
+$panelStat.Controls.Add($lblStatMath)
+
+$lblStatType = New-Object System.Windows.Forms.Label
+$lblStatType.Text = "Ketik Ulang: -"
+$lblStatType.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblStatType.Location = New-Object System.Drawing.Point(20, 135)
+$lblStatType.AutoSize = $true
+$panelStat.Controls.Add($lblStatType)
+
+$lblStatBuild = New-Object System.Windows.Forms.Label
+$lblStatBuild.Text = "Bangunan: -"
+$lblStatBuild.Font = New-Object System.Drawing.Font("Segoe UI", 12)
+$lblStatBuild.Location = New-Object System.Drawing.Point(20, 170)
+$lblStatBuild.AutoSize = $true
+$panelStat.Controls.Add($lblStatBuild)
+
+$lblStatTotal = New-Object System.Windows.Forms.Label
+$lblStatTotal.Text = "Total penghasilan kerja: Rp 0"
+$lblStatTotal.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$lblStatTotal.ForeColor = [System.Drawing.Color]::Orange
+$lblStatTotal.Location = New-Object System.Drawing.Point(20, 220)
+$lblStatTotal.AutoSize = $true
+$panelStat.Controls.Add($lblStatTotal)
 
 # --- PANEL KANAN: KONTEN ---
 $panelContent = New-Object System.Windows.Forms.Panel
@@ -721,7 +766,7 @@ $panelBuild.Visible = $false
 $panelContent.Controls.Add($panelBuild)
 
 $lblBuildInfo = New-Object System.Windows.Forms.Label
-$lblBuildInfo.Text = "Bahan: Rp 500.000 | Jasa: Rp 200.000 | Waktu: 30 Menit"
+$lblBuildInfo.Text = ("Bahan: Rp {0:N0} | Jasa: Rp {1:N0} | Waktu: {2} menit/rumah" -f $Global:Config.BuildMaterialCost, $Global:Config.BuildLaborCost, $Global:Config.BuildWaitMinutes)
 $lblBuildInfo.Font = New-Object System.Drawing.Font("Segoe UI", 12)
 $lblBuildInfo.Location = New-Object System.Drawing.Point(20, 30)
 $lblBuildInfo.AutoSize = $true
@@ -733,11 +778,24 @@ $panelBuild.Controls.Add($btnBuildStart)
 $lblBuildStatus = New-Object System.Windows.Forms.Label
 $lblBuildStatus.Text = "Status: Belum ada bangunan."
 $lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 12)
-$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 130)
+$lblBuildStatus.Location = New-Object System.Drawing.Point(240, 80)
 $lblBuildStatus.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildStatus)
 
-$btnBuildSell = Create-ActionButton "Jual Rumah" 20 170 200 40 $ColorSuccess
+$lvBuilds = New-Object System.Windows.Forms.ListView
+$lvBuilds.View = [System.Windows.Forms.View]::Details
+$lvBuilds.FullRowSelect = $true
+$lvBuilds.GridLines = $true
+$lvBuilds.Location = New-Object System.Drawing.Point(20, 130)
+$lvBuilds.Size = New-Object System.Drawing.Size(520, 220)
+[void]$lvBuilds.Columns.Add("No", 40)
+[void]$lvBuilds.Columns.Add("Status", 100)
+[void]$lvBuilds.Columns.Add("Sisa Waktu", 110)
+[void]$lvBuilds.Columns.Add("Biaya", 120)
+[void]$lvBuilds.Columns.Add("Harga Jual", 130)
+$panelBuild.Controls.Add($lvBuilds)
+
+$btnBuildSell = Create-ActionButton "Jual Terpilih" 20 365 200 40 $ColorSuccess
 $btnBuildSell.Enabled = $false
 $panelBuild.Controls.Add($btnBuildSell)
 
@@ -747,27 +805,81 @@ $Global:MathStartTime = $null
 $Global:BuildEndTime = $null
 
 function Show-WorkPanel($panel) {
+    $panelStat.Visible = $false
     $panelMath.Visible = $false
     $panelType.Visible = $false
     $panelBuild.Visible = $false
     $panel.Visible = $true
 }
 
+function Get-WorkStat([string]$key) {
+    $ws = $Global:GameState.PSObject.Properties['WorkStats']
+    if ($null -eq $ws) { return 0.0 }
+    $v = $ws.Value.PSObject.Properties[$key]
+    if ($null -eq $v) { return 0.0 }
+    try { return [double]$v.Value } catch { return 0.0 }
+}
+
+function Add-WorkStat([string]$key, [double]$delta) {
+    if ($null -eq $Global:GameState.PSObject.Properties['WorkStats']) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "WorkStats" -Value (New-Object PSObject) -Force
+    }
+    $ws = $Global:GameState.PSObject.Properties['WorkStats'].Value
+    $cur = 0.0
+    $v = $ws.PSObject.Properties[$key]
+    if ($null -ne $v) { try { $cur = [double]$v.Value } catch { $cur = 0.0 } }
+    $ws | Add-Member -MemberType NoteProperty -Name $key -Value ($cur + $delta) -Force
+}
+
+function Update-WorkStatsUI {
+    if ($null -eq $Global:GameState) { return }
+    $lblStatMath.Text = ("Matematika: {0} benar, {1} salah, {2} skip | Reward Rp {3:N0}" -f (Get-WorkStat 'MathCorrect'), (Get-WorkStat 'MathWrong'), (Get-WorkStat 'MathSkip'), (Get-WorkStat 'MathReward'))
+    $done = Get-WorkStat 'TypeDone'
+    $avgSim = 0.0
+    if ($done -gt 0) { $avgSim = (Get-WorkStat 'TypeSimilaritySum') / $done * 100 }
+    $lblStatType.Text = ("Ketik Ulang: {0} selesai | Kemiripan rata-rata {1:N0}% | Cash Rp {2:N0}" -f $done, $avgSim, (Get-WorkStat 'TypeCash'))
+    $lblStatBuild.Text = ("Bangunan: {0} dibangun, {1} terjual | Belanja Rp {2:N0} | Pendapatan jual Rp {3:N0}" -f (Get-WorkStat 'HouseBuilt'), (Get-WorkStat 'HouseSold'), (Get-WorkStat 'HouseSpend'), (Get-WorkStat 'HouseIncome'))
+    $total = (Get-WorkStat 'MathReward') + (Get-WorkStat 'TypeCash') + (Get-WorkStat 'HouseIncome')
+    $lblStatTotal.Text = "Total penghasilan kerja: Rp {0:N0}" -f $total
+}
+
+$btnMenuStat.Add_Click({ Show-WorkPanel $panelStat; Update-WorkStatsUI })
 $btnMenuMath.Add_Click({ Show-WorkPanel $panelMath; Generate-MathQuestion })
 $btnMenuType.Add_Click({ Show-WorkPanel $panelType; Generate-TypeQuestion })
 $btnMenuBuild.Add_Click({ Show-WorkPanel $panelBuild; Update-BuildUI })
 
 function Generate-MathQuestion {
     $lvl = [int]$Global:GameState.Sectors.Clicker.Level
-    $a = Get-Random -Minimum 5 -Maximum (10 + $lvl * 5)
-    $b = Get-Random -Minimum 5 -Maximum (10 + $lvl * 5)
-    $Global:MathCurrentAnswer = $a + $b
-    $lblMathSoal.Text = "Soal: $a + $b = ?"
+    $max = (10 + $lvl * 5)
+    $op = Get-Random -Minimum 0 -Maximum 4
+    switch ($op) {
+        0 {
+            $a = Get-Random -Minimum 5 -Maximum $max; $b = Get-Random -Minimum 5 -Maximum $max
+            $ans = $a + $b; $sym = "+"
+        }
+        1 {
+            $a = Get-Random -Minimum 5 -Maximum $max; $b = Get-Random -Minimum 5 -Maximum $max
+            if ($b -gt $a) { $t = $a; $a = $b; $b = $t }
+            $ans = $a - $b; $sym = "-"
+        }
+        2 {
+            $lim = [Math]::Max(6, [int]($max / 10))
+            $a = Get-Random -Minimum 2 -Maximum $lim; $b = Get-Random -Minimum 2 -Maximum $lim
+            $ans = $a * $b; $sym = "x"
+        }
+        3 {
+            $lim = [Math]::Max(6, [int]($max / 10))
+            $b = Get-Random -Minimum 2 -Maximum $lim; $ans = Get-Random -Minimum 2 -Maximum $lim
+            $a = $b * $ans; $sym = ":"
+        }
+    }
+    $Global:MathCurrentAnswer = $ans
+    $lblMathSoal.Text = "Soal: $a $sym $b = ?"
     $txtMathAnswer.Text = ""
     $Global:MathStartTime = [DateTime]::UtcNow
 }
 
-$btnMathSkip.Add_Click({ Generate-MathQuestion })
+$btnMathSkip.Add_Click({ Add-WorkStat 'MathSkip' 1; Generate-MathQuestion })
 
 $btnMathSubmit.Add_Click({
     try {
@@ -779,6 +891,8 @@ $btnMathSubmit.Add_Click({
             
             $Global:GameState.Flags | Add-Member -MemberType NoteProperty -Name "StockBuffUntil" -Value ([DateTime]::UtcNow.AddSeconds($Global:Config.MathWorkAutoSec).ToString('o')) -Force
             $Global:GameState.Flags | Add-Member -MemberType NoteProperty -Name "StockBuffMult" -Value $Global:Config.MathWorkAutoMult -Force
+            Add-WorkStat 'MathCorrect' 1
+            Add-WorkStat 'MathReward' $reward
             
             $msg = "BENAR! +Rp $reward, Auto x$($Global:Config.MathWorkAutoMult) selama $($Global:Config.MathWorkAutoSec)s."
             if ($elapsed -lt 5) {
@@ -791,14 +905,26 @@ $btnMathSubmit.Add_Click({
             Update-AllUI
         } else {
             [System.Windows.Forms.MessageBox]::Show("Salah! Jawaban: $($Global:MathCurrentAnswer)")
+            Add-WorkStat 'MathWrong' 1
             Generate-MathQuestion
         }
     } catch {}
 })
 
+function New-PseudoWord {
+    $cons = @('b','c','d','f','g','h','j','k','l','m','n','p','r','s','t','v','z')
+    $vows = @('a','e','i','o','u')
+    $w = ""
+    $syl = Get-Random -Minimum 2 -Maximum 4
+    for ($i = 0; $i -lt $syl; $i++) { $w += ($cons | Get-Random) + ($vows | Get-Random) }
+    if ((Get-Random -Minimum 0 -Maximum 3) -eq 0) { $w += ($cons | Get-Random) }
+    return $w
+}
+
 function Generate-TypeQuestion {
-    $texts = @("ClickTycoonIdle adalah game seru", "Saya sedang belajar PowerShell", "Pasar saham naik turun setiap detik")
-    $target = $texts | Get-Random
+    $n = Get-Random -Minimum 5 -Maximum 11
+    $words = @(1..$n | ForEach-Object { New-PseudoWord })
+    $target = $words -join " "
     $lblTypeText.Text = "Ketik: $target"
     $Global:TypeTarget = $target
     $txtTypeInput.Text = ""
@@ -817,34 +943,97 @@ $btnTypeSubmit.Add_Click({
     $nilai = $similarity * 10 * $lvl
     $cash = $nilai + 1000
     $Global:GameState.Player.Money += $cash
+    Add-WorkStat 'TypeDone' 1
+    Add-WorkStat 'TypeSimilaritySum' $similarity
+    Add-WorkStat 'TypeCash' $cash
     [System.Windows.Forms.MessageBox]::Show("Selesai! Kemiripan: $([Math]::Round($similarity*100))%`nCash didapat: Rp $cash")
     Generate-TypeQuestion
     Update-AllUI
 })
 
-function Update-BuildUI {
-    if ($null -ne $Global:BuildEndTime -and [DateTime]::UtcNow -lt $Global:BuildEndTime) {
-        $ts = $Global:BuildEndTime - [DateTime]::UtcNow
-        $lblBuildStatus.Text = "Status: Membangun... ($([int]$ts.TotalMinutes) mnt $($ts.Seconds) dtk)"
-        $btnBuildSell.Enabled = $false
-        $btnBuildStart.Enabled = $false
-    } elseif ($null -ne $Global:BuildEndTime -and [DateTime]::UtcNow -ge $Global:BuildEndTime) {
-        $lblBuildStatus.Text = "Status: Rumah Siap Dijual!"
-        $btnBuildSell.Enabled = $true
-        $btnBuildStart.Enabled = $false
-    } else {
-        $lblBuildStatus.Text = "Status: Belum ada bangunan."
-        $btnBuildSell.Enabled = $false
-        $btnBuildStart.Enabled = $true
+function Parse-UtcSafe([string]$s) {
+    return [DateTime]::Parse($s, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+}
+
+function Get-Houses {
+    if ($null -eq $Global:GameState.PSObject.Properties['Houses']) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "Houses" -Value @() -Force
     }
+    return @($Global:GameState.Houses)
+}
+
+function Test-HouseDone($h) {
+    try { return ([DateTime]::UtcNow -ge (Parse-UtcSafe $h.EndUtc)) } catch { return $true }
+}
+
+function Get-HouseById($id) {
+    foreach ($h in (Get-Houses)) { if ($h.Id -eq $id) { return $h } }
+    return $null
+}
+
+function Get-HouseSellPrice($h) {
+    return [double]$h.Cost * (1 + ($Global:Config.BuildSellMarkupPct / 100))
+}
+
+function Update-BuildUI {
+    if ($null -ne $Global:BuildEndTime) {
+        $old = [PSCustomObject]@{ Id = [Guid]::NewGuid().ToString("N"); EndUtc = $Global:BuildEndTime.ToString('o'); Cost = ($Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost) }
+        $Global:GameState.Houses = @((Get-Houses) + @($old))
+        $Global:BuildEndTime = $null
+    }
+    $houses = Get-Houses
+    $selId = $null
+    if ($lvBuilds.SelectedItems.Count -gt 0) { $selId = $lvBuilds.SelectedItems[0].Tag }
+    $lvBuilds.BeginUpdate()
+    $lvBuilds.Items.Clear()
+    $i = 1
+    $nBuilding = 0; $nDone = 0
+    foreach ($h in $houses) {
+        $done = Test-HouseDone $h
+        $sisa = "-"
+        if (-not $done) {
+            $nBuilding++
+            $ts = (Parse-UtcSafe $h.EndUtc) - [DateTime]::UtcNow
+            if ($ts.TotalSeconds -lt 60) { $sisa = "$([int][Math]::Ceiling($ts.TotalSeconds))s" } else { $sisa = "{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds }
+        } else { $nDone++ }
+        $price = Get-HouseSellPrice $h
+        $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
+        [void]$item.SubItems.Add($(if ($done) { "Selesai" } else { "Membangun" }))
+        [void]$item.SubItems.Add($sisa)
+        [void]$item.SubItems.Add(("Rp {0:N0}" -f $h.Cost))
+        [void]$item.SubItems.Add(("Rp {0:N0}" -f $price))
+        $item.Tag = $h.Id
+        if ($done) { $item.ForeColor = [System.Drawing.Color]::Green }
+        [void]$lvBuilds.Items.Add($item)
+        $i++
+    }
+    $lvBuilds.EndUpdate()
+    if ($selId) { foreach ($it in $lvBuilds.Items) { if ($it.Tag -eq $selId) { $it.Selected = $true; break } } }
+    $selDone = $false
+    if ($lvBuilds.SelectedItems.Count -gt 0) {
+        $h = Get-HouseById $lvBuilds.SelectedItems[0].Tag
+        if ($null -ne $h -and (Test-HouseDone $h)) { $selDone = $true }
+    }
+    $btnBuildSell.Enabled = $selDone
+    $btnBuildStart.Enabled = $true
+    if ($houses.Count -eq 0) { $lblBuildStatus.Text = "Status: Belum ada bangunan." }
+    else { $lblBuildStatus.Text = "Status: $nBuilding membangun, $nDone selesai" }
 }
 
 $btnBuildStart.Add_Click({
     $cost = $Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost
     if ($Global:GameState.Player.Money -ge $cost) {
         $Global:GameState.Player.Money -= $cost
-        $Global:BuildEndTime = [DateTime]::UtcNow.AddMinutes($Global:Config.BuildWaitMinutes)
+        $house = [PSCustomObject]@{
+            Id     = [Guid]::NewGuid().ToString("N")
+            EndUtc = [DateTime]::UtcNow.AddMinutes($Global:Config.BuildWaitMinutes).ToString('o')
+            Cost   = $cost
+        }
+        $Global:GameState.Houses = @((Get-Houses) + @($house))
+        Add-WorkStat 'HouseBuilt' 1
+        Add-WorkStat 'HouseSpend' $cost
         Update-BuildUI
+        Update-WorkStatsUI
         Update-AllUI
     } else {
         [System.Windows.Forms.MessageBox]::Show("Uang tidak cukup! Butuh Rp $cost")
@@ -852,13 +1041,28 @@ $btnBuildStart.Add_Click({
 })
 
 $btnBuildSell.Add_Click({
-    $baseCost = $Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost
-    $sellPrice = $baseCost + ($baseCost * ($Global:Config.BuildSellMarkupPct / 100))
+    if ($lvBuilds.SelectedItems.Count -eq 0) { return }
+    $id = $lvBuilds.SelectedItems[0].Tag
+    $h = Get-HouseById $id
+    if ($null -eq $h -or -not (Test-HouseDone $h)) {
+        [System.Windows.Forms.MessageBox]::Show("Rumah itu belum selesai dibangun.")
+        return
+    }
+    $sellPrice = Get-HouseSellPrice $h
     $Global:GameState.Player.Money += $sellPrice
-    $Global:BuildEndTime = $null
+    $Global:GameState.Houses = @((Get-Houses) | Where-Object { $_.Id -ne $id })
+    Add-WorkStat 'HouseSold' 1
+    Add-WorkStat 'HouseIncome' $sellPrice
     Update-BuildUI
+    Update-WorkStatsUI
     Update-AllUI
     [System.Windows.Forms.MessageBox]::Show("Rumah terjual! +Rp $sellPrice")
+})
+
+$lvBuilds.Add_SelectedIndexChanged({
+    if ($lvBuilds.SelectedItems.Count -eq 0) { $btnBuildSell.Enabled = $false; return }
+    $h = Get-HouseById $lvBuilds.SelectedItems[0].Tag
+    $btnBuildSell.Enabled = ($null -ne $h -and (Test-HouseDone $h))
 })
 # --- FUNGSI UPDATE UI UTAMA ---
 function Update-AllUI {
@@ -1392,12 +1596,16 @@ $timer.Add_Tick({
         Update-AllUI
         Update-Chart
         if ($panelBuild.Visible) { Update-BuildUI }
+        if ($panelStat.Visible) { Update-WorkStatsUI }
     }
 })
 
 Initialize-Table
 Update-AllUI
 Update-Chart
+Show-WorkPanel $panelStat
+Update-WorkStatsUI
+Update-BuildUI
 $timer.Start()
 
 $form.Add_FormClosing({
