@@ -20,7 +20,7 @@ function Grant-BuyBuff($qty) {
     if ($sec -gt 0) {
         $Global:GameState.Flags['StockBuffUntil'] = [DateTime]::UtcNow.AddSeconds($sec).ToString('o')
         $Global:GameState.Flags['StockBuffMult'] = $mult
-        $Global:GameState.Flags['LastClickMsg'] = ("BONUS BELI SAHAM! Auto Income x{0} selama {1} detik." -f $mult, $sec)
+        $Global:GameState.Flags['LastClickMsg'] = ("BONUS BELI SAHAM! Auto Income & Klik x{0} selama {1} detik." -f $mult, $sec)
     }
 }
 
@@ -268,8 +268,13 @@ $clickerHooks = @{
                 if ($Global:GameState.Flags.ContainsKey('ClickBuffUntil')) {
                     try { $until = [DateTime]::Parse($Global:GameState.Flags['ClickBuffUntil'], [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $clickBuff = [double]$Global:GameState.Flags['ClickBuffMult'] } } catch {}
                 }
-                
-                $gain = [Math]::Max(1.0, [double]$clvl) * $buff * $clickBuff
+
+                $stockBuff = 1.0
+                if ($Global:GameState.Flags.ContainsKey('StockBuffUntil')) {
+                    try { $until = [DateTime]::Parse($Global:GameState.Flags['StockBuffUntil'], [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $stockBuff = [double]$Global:GameState.Flags['StockBuffMult'] } } catch {}
+                }
+
+                $gain = [Math]::Max(1.0, [double]$clvl) * $buff * $clickBuff * $stockBuff
                 $Global:GameState.Player.Money += $gain
                 $Global:GameState.Player.Clicks += 1
                 $Global:GameState.Flags['LastClickMsg'] = ("Klik! +{0:N2}" -f $gain)

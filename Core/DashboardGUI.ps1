@@ -315,6 +315,9 @@ $btnClick.Add_Click({
     if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'ClickBuffUntil') {
         try { $until = [DateTime]::Parse($Global:GameState.Flags.ClickBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.ClickBuffMult } } catch {}
     }
+    if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'StockBuffUntil') {
+        try { $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff *= [double]$Global:GameState.Flags.StockBuffMult } } catch {}
+    }
     $gain = [Math]::Max(1.0, [double]$lvl) * $buff
     $Global:GameState.Player.Money += $gain
     $Global:GameState.Player.Clicks += 1
