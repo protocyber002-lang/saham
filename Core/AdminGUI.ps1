@@ -125,6 +125,10 @@ function Save-FromBoxes {
             [System.Windows.Forms.MessageBox]::Show(("Nilai tidak valid untuk " + $k + ": '" + $txt + "'. Harus angka (titik = desimal)."))
             return
         }
+        if ($val -le 0) {
+            [System.Windows.Forms.MessageBox]::Show(("Nilai untuk " + $k + " harus lebih dari 0 (ditemukan: " + $txt + ")."))
+            return
+        }
         $defVal = [double]$Global:ConfigDefaults[$k]
         if ([Math]::Abs($val - $defVal) -gt 0.000001) { $obj[$k] = $val }
     }

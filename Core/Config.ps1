@@ -143,7 +143,18 @@ function Import-WorkConfigOverride {
                 $wc = $rawW -replace "^\uFEFF", "" | ConvertFrom-Json
                 foreach ($p in $wc.PSObject.Properties) {
                     if ($Target.ContainsKey($p.Name)) {
-                        try { $Target[$p.Name] = [double]$p.Value; $applied++ } catch { }
+                        try {
+                            $val = [double]$p.Value
+                            if ($p.Name -eq 'WorkerCostGrowth' -and $val -lt 1) {
+                                Write-Host ("[ADMIN] Override diabaikan (WorkerCostGrowth harus >= 1): " + $p.Value) -ForegroundColor Yellow
+                            }
+                            elseif ($val -gt 0) {
+                                $Target[$p.Name] = $val
+                                $applied++
+                            } else {
+                                Write-Host ("[ADMIN] Override diabaikan (harus > 0): " + $p.Name + " = " + $p.Value) -ForegroundColor Yellow
+                            }
+                        } catch { }
                     }
                 }
             }
