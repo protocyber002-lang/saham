@@ -170,6 +170,10 @@ function Release-ProfileLock {
         } catch { }
     }
     $Global:ProfileMutexes = @()
+    if ($script:CurrentLockPath) {
+        Remove-Item $script:CurrentLockPath -Force -ErrorAction SilentlyContinue
+        $script:CurrentLockPath = $null
+    }
 }
 function SaveSystem.Save {
     $state = $Global:GameState
