@@ -128,6 +128,7 @@ function Save-GameData {
 
 $Global:StocksCache = $null
 $Global:StocksCacheTime = [DateTime]::MinValue
+$Global:EngineCheckCounter = 0
 
 function Load-StocksData {
     if ($null -ne $Global:StocksCache -and ([DateTime]::Now - $Global:StocksCacheTime).TotalMilliseconds -lt 900) { return $Global:StocksCache }
@@ -144,6 +145,24 @@ function Load-StocksData {
         } catch { return @() }
     }
     return @()
+}
+
+function Test-MarketEngineAlive {
+    try {
+        if (-not (Test-Path $Global:StocksPath)) { return $false }
+        return (([DateTime]::Now - (Get-Item $Global:StocksPath).LastWriteTime).TotalSeconds -lt 15)
+    } catch { return $false }
+}
+
+function Ensure-MarketEngine {
+    if (Test-MarketEngineAlive) { return }
+    $enginePath = Join-Path $Global:RootPath "Core\MarketEngine.ps1"
+    try {
+        Start-Process -FilePath "powershell" -ArgumentList @("-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", $enginePath) -WindowStyle Hidden | Out-Null
+        Write-Host "[GUI] Market engine tidak terdeteksi -> dijalankan otomatis (harga & grafik aktif)."
+    } catch {
+        Write-Host "[GUI][WARN] Gagal menjalankan market engine: $($_.Exception.Message)"
+    }
 }
 
 # =====================================================================
@@ -803,6 +822,7 @@ $lvBuilds.FullRowSelect = $true
 $lvBuilds.GridLines = $true
 $lvBuilds.Location = New-Object System.Drawing.Point(20, 145)
 $lvBuilds.Size = New-Object System.Drawing.Size(540, 210)
+$lvBuilds.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 [void]$lvBuilds.Columns.Add("No", 40)
 [void]$lvBuilds.Columns.Add("Tipe", 90)
 [void]$lvBuilds.Columns.Add("Status", 90)
@@ -1010,6 +1030,7 @@ function Build-House([string]$typeName, [double]$cost, [double]$waitMin) {
 }
 
 function Update-BuildUI {
+    $lvBuilds.Width = [Math]::Max(400, [int]($panelBuild.ClientSize.Width * 0.9))
     if ($null -ne $Global:BuildEndTime) {
         $old = [PSCustomObject]@{ Id = [Guid]::NewGuid().ToString("N"); EndUtc = $Global:BuildEndTime.ToString('o'); Cost = ($Global:Config.BuildMaterialCost + $Global:Config.BuildLaborCost) }
         $Global:GameState.Houses = @(@(Get-Houses) + @($old))
@@ -1622,9 +1643,14 @@ $timer.Add_Tick({
         Update-Chart
         if ($panelBuild.Visible) { Update-BuildUI }
         if ($panelStat.Visible) { Update-WorkStatsUI }
+        $Global:EngineCheckCounter++
+        if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
     }
 })
 
+Ensure-MarketEngine
+$waitLoops = 0
+while (-not (Test-MarketEngineAlive) -and $waitLoops -lt 50) { Start-Sleep -Milliseconds 100; $waitLoops++ }
 Initialize-Table
 Update-AllUI
 Update-Chart
