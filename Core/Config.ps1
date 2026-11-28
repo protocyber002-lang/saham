@@ -80,14 +80,30 @@ $Global:Config = @{
     BuildSellMarkupPct = 50.0     # Markup harga jual rumah (50%)
 
     # --- JENIS RUMAH (Developer Bangunan) ---
+    # Cost = harga jual dasar. Wait = lama (tidak dipakai utk bangun baru, pekerja yg menentukan)
     HouseType21_Cost  = 500000.0
-    HouseType21_Wait  = 20.0      # menit
+    HouseType21_Wait  = 20.0      # menit (lama)
     HouseType45_Cost  = 1000000.0
-    HouseType45_Wait  = 30.0
+    HouseType45_Wait  = 30.0      # menit (lama)
     HouseType90_Cost  = 2500000.0
-    HouseType90_Wait  = 45.0
+    HouseType90_Wait  = 45.0      # menit (lama)
     HouseType120_Cost = 5000000.0
-    HouseType120_Wait = 60.0
+    HouseType120_Wait = 60.0      # menit (lama)
+
+    # --- BAHAN PER JENIS RUMAH ---
+    HouseType21_Hebel  = 790;    HouseType21_Semen  = 55;   HouseType21_Pasir  = 10
+    HouseType21_WorkHours = 90.0;  HouseType21_MinWorkers = 3
+    HouseType45_Hebel  = 1580;   HouseType45_Semen  = 110;  HouseType45_Pasir  = 20
+    HouseType45_WorkHours = 180.0; HouseType45_MinWorkers = 5
+    HouseType90_Hebel  = 3950;   HouseType90_Semen  = 275;  HouseType90_Pasir  = 50
+    HouseType90_WorkHours = 270.0; HouseType90_MinWorkers = 8
+    HouseType120_Hebel = 7900;   HouseType120_Semen = 550;  HouseType120_Pasir = 100
+    HouseType120_WorkHours = 360.0; HouseType120_MinWorkers = 10
+
+    # --- HARGA BAHAN (per satuan) ---
+    HebelPrice = 300.0           # per pcs
+    SemenPrice = 2000.0          # per sak
+    PasirPrice = 15000.0         # per m3
 
     # --- KONTRAK HARIAN ---
     ContractRewardBase  = 5000.0    # hadiah dasar per kontrak (x RewardMult)
@@ -96,9 +112,10 @@ $Global:Config = @{
     AuctionDurationSec  = 30.0      # durasi lelang (detik)
     AuctionMaxMarkupPct = 120.0     # markup maksimum saat lelang (%)
 
-    # --- PEKERJA ---
-    WorkerBaseIncome    = 1.0       # Rp/dtk per pekerja per level
-    WorkerBaseCost      = 25000.0   # harga rekrut pekerja pertama
+    # --- PAJAK & PEKERJA ---
+    SellTaxPct = 10.0              # pajak saat menjual rumah (% harga jual)
+    WorkerSpeedBonusPerLvl = 0.02  # +2% kecepatan bangun per level pekerja
+    WorkerBaseCost      = 25000.0   # upah/harga rekrut pekerja pertama
     WorkerCostGrowth    = 1.35      # harga rekrut berikutnya = base x growth^jumlah
     WorkerXpPerLevel    = 10.0      # XP aktif kerja untuk naik 1 level
 }

@@ -54,7 +54,12 @@ $Global:ZoomLevel = 1.0
 # Load Config
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
-else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseIncome=1.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0 } }
+else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; HouseType21_Hebel=790; HouseType21_Semen=55; HouseType21_Pasir=10; HouseType21_WorkHours=90.0; HouseType21_MinWorkers=3; HouseType45_Hebel=1580; HouseType45_Semen=110; HouseType45_Pasir=20; HouseType45_WorkHours=180.0; HouseType45_MinWorkers=5; HouseType90_Hebel=3950; HouseType90_Semen=275; HouseType90_Pasir=50; HouseType90_WorkHours=270.0; HouseType90_MinWorkers=8; HouseType120_Hebel=7900; HouseType120_Semen=550; HouseType120_Pasir=100; HouseType120_WorkHours=360.0; HouseType120_MinWorkers=10; HebelPrice=300.0; SemenPrice=2000.0; PasirPrice=15000.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0; WorkerSpeedBonusPerLvl=0.02; SellTaxPct=10.0 } }
+
+function Get-Cfg([string]$key, [double]$def) {
+    try { if ($Global:Config.ContainsKey($key)) { return [double]$Global:Config[$key] } } catch {}
+    return $def
+}
 
 # --- KUNCI PROFIL (sama dengan TUI: satu profil satu proses) ---
 function Get-LockOwnerMessage($name, $lockPath) {
@@ -819,7 +824,7 @@ $btnWorkerHire = Create-ActionButton "Rekrut Pekerja" 20 140 260 45 $ColorAccent
 $panelWorker.Controls.Add($btnWorkerHire)
 
 $lblWorkerNote = New-Object System.Windows.Forms.Label
-$lblWorkerNote.Text = "XP naik dari aktivitas kerja (soal benar, ketik selesai, rumah dibangun). Income pekerja tidak terpengaruh buff saham."
+$lblWorkerNote.Text = "Pekerja dibayar saat direkrut (upah tenaganya). Tugaskan lewat tab '3. Developer Bangunan': pekerja siap membangun rumah; tiap level +kecepatan bangun."
 $lblWorkerNote.ForeColor = [System.Drawing.Color]::Gray
 $lblWorkerNote.Location = New-Object System.Drawing.Point(20, 200)
 $lblWorkerNote.AutoSize = $true
@@ -878,18 +883,26 @@ $panelBuild.Visible = $false
 $panelContent.Controls.Add($panelBuild)
 
 $lblBuildInfo = New-Object System.Windows.Forms.Label
-$lblBuildInfo.Text = ("Type 21: Rp {0:N0} ({1} mnt) | Type 45: Rp {2:N0} ({3} mnt) | Type 90: Rp {4:N0} ({5} mnt) | Type 120: Rp {6:N0} ({7} mnt) | Jual +{8}%" -f `
-    $Global:Config.HouseType21_Cost, $Global:Config.HouseType21_Wait, $Global:Config.HouseType45_Cost, $Global:Config.HouseType45_Wait, `
-    $Global:Config.HouseType90_Cost, $Global:Config.HouseType90_Wait, $Global:Config.HouseType120_Cost, $Global:Config.HouseType120_Wait, $Global:Config.BuildSellMarkupPct)
-$lblBuildInfo.Font = New-Object System.Drawing.Font("Segoe UI", 11)
-$lblBuildInfo.Location = New-Object System.Drawing.Point(20, 30)
+$lblBuildInfo.Text = ("Harga jual: T21 Rp {0:N0} | T45 Rp {1:N0} | T90 Rp {2:N0} | T120 Rp {3:N0} | Markup +{4:N0}% | Pajak jual {5:N0}%`n" +
+    "T21 : {6} hebel, {7} semen, {8} pasir, {9} jam kerja, min {10} pekerja`n" +
+    "T45 : {11} hebel, {12} semen, {13} pasir, {14} jam kerja, min {15} pekerja`n" +
+    "T90 : {16} hebel, {17} semen, {18} pasir, {19} jam kerja, min {20} pekerja`n" +
+    "T120: {21} hebel, {22} semen, {23} pasir, {24} jam kerja, min {25} pekerja") -f `
+    (Get-Cfg 'HouseType21_Cost' 500000.0), (Get-Cfg 'HouseType45_Cost' 1000000.0), (Get-Cfg 'HouseType90_Cost' 2500000.0), (Get-Cfg 'HouseType120_Cost' 5000000.0), `
+    (Get-Cfg 'BuildSellMarkupPct' 50.0), (Get-Cfg 'SellTaxPct' 10.0), `
+    (Get-Cfg 'HouseType21_Hebel' 790), (Get-Cfg 'HouseType21_Semen' 55), (Get-Cfg 'HouseType21_Pasir' 10), (Get-Cfg 'HouseType21_WorkHours' 90.0), (Get-Cfg 'HouseType21_MinWorkers' 3), `
+    (Get-Cfg 'HouseType45_Hebel' 1580), (Get-Cfg 'HouseType45_Semen' 110), (Get-Cfg 'HouseType45_Pasir' 20), (Get-Cfg 'HouseType45_WorkHours' 180.0), (Get-Cfg 'HouseType45_MinWorkers' 5), `
+    (Get-Cfg 'HouseType90_Hebel' 3950), (Get-Cfg 'HouseType90_Semen' 275), (Get-Cfg 'HouseType90_Pasir' 50), (Get-Cfg 'HouseType90_WorkHours' 270.0), (Get-Cfg 'HouseType90_MinWorkers' 8), `
+    (Get-Cfg 'HouseType120_Hebel' 7900), (Get-Cfg 'HouseType120_Semen' 550), (Get-Cfg 'HouseType120_Pasir' 100), (Get-Cfg 'HouseType120_WorkHours' 360.0), (Get-Cfg 'HouseType120_MinWorkers' 10)
+$lblBuildInfo.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblBuildInfo.Location = New-Object System.Drawing.Point(20, 28)
 $lblBuildInfo.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildInfo)
 
-$btnBuildT21 = Create-ActionButton "Bangun Type 21" 20 70 125 40 $ColorAccent
-$btnBuildT45 = Create-ActionButton "Bangun Type 45" 150 70 125 40 $ColorAccent
-$btnBuildT90 = Create-ActionButton "Bangun Type 90" 280 70 125 40 $ColorAccent
-$btnBuildT120 = Create-ActionButton "Bangun Type 120" 410 70 125 40 $ColorAccent
+$btnBuildT21 = Create-ActionButton "Bangun Type 21" 20 130 125 40 $ColorAccent
+$btnBuildT45 = Create-ActionButton "Bangun Type 45" 150 130 125 40 $ColorAccent
+$btnBuildT90 = Create-ActionButton "Bangun Type 90" 280 130 125 40 $ColorAccent
+$btnBuildT120 = Create-ActionButton "Bangun Type 120" 410 130 125 40 $ColorAccent
 $panelBuild.Controls.Add($btnBuildT21)
 $panelBuild.Controls.Add($btnBuildT45)
 $panelBuild.Controls.Add($btnBuildT90)
@@ -897,32 +910,94 @@ $panelBuild.Controls.Add($btnBuildT120)
 
 $lblBuildStatus = New-Object System.Windows.Forms.Label
 $lblBuildStatus.Text = "Status: Belum ada bangunan."
-$lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 12)
-$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 115)
+$lblBuildStatus.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$lblBuildStatus.Location = New-Object System.Drawing.Point(20, 178)
 $lblBuildStatus.AutoSize = $true
 $panelBuild.Controls.Add($lblBuildStatus)
+
+$lblWorkersInfo = New-Object System.Windows.Forms.Label
+$lblWorkersInfo.Text = "Pekerja: siap 0 | bekerja 0"
+$lblWorkersInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblWorkersInfo.ForeColor = $ColorSuccess
+$lblWorkersInfo.Location = New-Object System.Drawing.Point(20, 205)
+$lblWorkersInfo.AutoSize = $true
+$panelBuild.Controls.Add($lblWorkersInfo)
+
+$btnBuildHire = Create-ActionButton "Rekrut Pekerja" 280 200 130 35 $ColorAccent
+$panelBuild.Controls.Add($btnBuildHire)
+
+$btnBuildAddWorker = Create-ActionButton "Pekerja -> Rumah" 420 200 150 35 $ColorSuccess
+$btnBuildAddWorker.Enabled = $false
+$panelBuild.Controls.Add($btnBuildAddWorker)
+
+$lblMatTitle = New-Object System.Windows.Forms.Label
+$lblMatTitle.Text = "Bahan Bangunan (beli stok, dipakai saat bangun):"
+$lblMatTitle.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$lblMatTitle.Location = New-Object System.Drawing.Point(20, 245)
+$lblMatTitle.AutoSize = $true
+$panelBuild.Controls.Add($lblMatTitle)
+
+$lblMatHebel = New-Object System.Windows.Forms.Label
+$lblMatHebel.Text = "Hebel"
+$lblMatHebel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblMatHebel.Location = New-Object System.Drawing.Point(20, 272)
+$lblMatHebel.AutoSize = $true
+$panelBuild.Controls.Add($lblMatHebel)
+$txtBuyHebel = New-Object System.Windows.Forms.TextBox
+$txtBuyHebel.Location = New-Object System.Drawing.Point(330, 268)
+$txtBuyHebel.Size = New-Object System.Drawing.Size(70, 24)
+$panelBuild.Controls.Add($txtBuyHebel)
+$btnBuyHebel = Create-ActionButton "Beli" 410 266 80 28 $ColorAccent
+$panelBuild.Controls.Add($btnBuyHebel)
+
+$lblMatSemen = New-Object System.Windows.Forms.Label
+$lblMatSemen.Text = "Semen"
+$lblMatSemen.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblMatSemen.Location = New-Object System.Drawing.Point(20, 300)
+$lblMatSemen.AutoSize = $true
+$panelBuild.Controls.Add($lblMatSemen)
+$txtBuySemen = New-Object System.Windows.Forms.TextBox
+$txtBuySemen.Location = New-Object System.Drawing.Point(330, 296)
+$txtBuySemen.Size = New-Object System.Drawing.Size(70, 24)
+$panelBuild.Controls.Add($txtBuySemen)
+$btnBuySemen = Create-ActionButton "Beli" 410 294 80 28 $ColorAccent
+$panelBuild.Controls.Add($btnBuySemen)
+
+$lblMatPasir = New-Object System.Windows.Forms.Label
+$lblMatPasir.Text = "Pasir"
+$lblMatPasir.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblMatPasir.Location = New-Object System.Drawing.Point(20, 328)
+$lblMatPasir.AutoSize = $true
+$panelBuild.Controls.Add($lblMatPasir)
+$txtBuyPasir = New-Object System.Windows.Forms.TextBox
+$txtBuyPasir.Location = New-Object System.Drawing.Point(330, 324)
+$txtBuyPasir.Size = New-Object System.Drawing.Size(70, 24)
+$panelBuild.Controls.Add($txtBuyPasir)
+$btnBuyPasir = Create-ActionButton "Beli" 410 322 80 28 $ColorAccent
+$panelBuild.Controls.Add($btnBuyPasir)
 
 $lvBuilds = New-Object System.Windows.Forms.ListView
 $lvBuilds.View = [System.Windows.Forms.View]::Details
 $lvBuilds.FullRowSelect = $true
 $lvBuilds.GridLines = $true
-$lvBuilds.Location = New-Object System.Drawing.Point(20, 145)
-$lvBuilds.Size = New-Object System.Drawing.Size(540, 210)
+$lvBuilds.Location = New-Object System.Drawing.Point(20, 360)
+$lvBuilds.Size = New-Object System.Drawing.Size(540, 175)
 $lvBuilds.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 [void]$lvBuilds.Columns.Add("No", 40)
-[void]$lvBuilds.Columns.Add("Tipe", 90)
-[void]$lvBuilds.Columns.Add("Status", 90)
-[void]$lvBuilds.Columns.Add("Sisa Waktu", 100)
-[void]$lvBuilds.Columns.Add("Biaya", 110)
+[void]$lvBuilds.Columns.Add("Tipe", 80)
+[void]$lvBuilds.Columns.Add("Status", 85)
+[void]$lvBuilds.Columns.Add("Pekerja", 60)
+[void]$lvBuilds.Columns.Add("Sisa Waktu", 95)
+[void]$lvBuilds.Columns.Add("Biaya", 100)
 [void]$lvBuilds.Columns.Add("Keuntungan", 110)
 [void]$lvBuilds.Columns.Add("Harga Jual", 120)
 $panelBuild.Controls.Add($lvBuilds)
 
-$btnBuildSell = Create-ActionButton "Jual Terpilih" 20 365 200 40 $ColorSuccess
+$btnBuildSell = Create-ActionButton "Jual Terpilih" 20 545 200 40 $ColorSuccess
 $btnBuildSell.Enabled = $false
 $panelBuild.Controls.Add($btnBuildSell)
 
-$btnBuildAuction = Create-ActionButton "Lelang Terpilih" 240 365 200 40 $ColorAccent
+$btnBuildAuction = Create-ActionButton "Lelang Terpilih" 240 545 200 40 $ColorAccent
 $btnBuildAuction.Enabled = $false
 $panelBuild.Controls.Add($btnBuildAuction)
 
@@ -930,7 +1005,7 @@ $lblAuction = New-Object System.Windows.Forms.Label
 $lblAuction.Text = "Lelang: tidak aktif"
 $lblAuction.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
 $lblAuction.ForeColor = [System.Drawing.Color]::Gray
-$lblAuction.Location = New-Object System.Drawing.Point(460, 375)
+$lblAuction.Location = New-Object System.Drawing.Point(460, 555)
 $lblAuction.AutoSize = $true
 $panelBuild.Controls.Add($lblAuction)
 
@@ -970,11 +1045,6 @@ function Add-WorkStat([string]$key, [double]$delta) {
         Add-ContractProgress $key $delta
         if ($key -eq 'HouseBuilt') { Add-WorkerXp (2.0 * $delta) } else { Add-WorkerXp $delta }
     }
-}
-
-function Get-Cfg([string]$key, [double]$def) {
-    try { if ($Global:Config.ContainsKey($key)) { return [double]$Global:Config[$key] } } catch {}
-    return $def
 }
 
 function Get-UtcDateStr { return [DateTime]::UtcNow.ToString("yyyy-MM-dd") }
@@ -1086,12 +1156,6 @@ function Get-WorkerLevel {
     return ([int][Math]::Floor(([double]$w.Xp) / $xpPer) + 1)
 }
 
-function Get-WorkerRate {
-    $w = Get-Workers
-    if ([int]$w.Count -le 0) { return 0.0 }
-    return ([int]$w.Count) * (Get-Cfg 'WorkerBaseIncome' 1.0) * (Get-WorkerLevel)
-}
-
 function Get-WorkerHireCost {
     $w = Get-Workers
     return (Get-Cfg 'WorkerBaseCost' 25000.0) * [Math]::Pow((Get-Cfg 'WorkerCostGrowth' 1.35), [int]$w.Count)
@@ -1104,13 +1168,14 @@ function Update-WorkerUI {
     $xpPer = (Get-Cfg 'WorkerXpPerLevel' 10.0)
     if ($xpPer -le 0) { $xpPer = 10.0 }
     $xpInLvl = ([double]$w.Xp) - (($lvl - 1) * $xpPer)
-    $lblWorkerInfo.Text = "Pekerja: {0} | Level {1} | XP {2:N0}/{3:N0} | Income: Rp {4:N2}/dtk" -f [int]$w.Count, $lvl, $xpInLvl, $xpPer, (Get-WorkerRate)
+    $lblWorkerInfo.Text = "Pekerja: {0} total | siap {1} | bekerja {2} | Level {3} | XP {4:N0}/{5:N0} | kecepatan +{6:N0}%" -f `
+        [int]$w.Count, (Get-FreeWorkers), (Get-BusyWorkers), $lvl, $xpInLvl, $xpPer, (((Get-WorkerSpeedFactor) - 1.0) * 100)
     $cost = Get-WorkerHireCost
     $btnWorkerHire.Text = "Rekrut Pekerja (Rp {0:N0})" -f $cost
     $btnWorkerHire.Enabled = ([double]$Global:GameState.Player.Money -ge $cost)
 }
 
-$btnWorkerHire.Add_Click({
+function Hire-Worker {
     $cost = Get-WorkerHireCost
     if ([double]$Global:GameState.Player.Money -lt $cost) {
         [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
@@ -1120,8 +1185,11 @@ $btnWorkerHire.Add_Click({
     $w = Get-Workers
     $w | Add-Member -MemberType NoteProperty -Name Count -Value (([int]$w.Count) + 1) -Force
     Update-WorkerUI
+    Update-BuildUI
     Update-AllUI
-})
+}
+
+$btnWorkerHire.Add_Click({ Hire-Worker })
 
 $btnClaim1.Add_Click({ Claim-Contract 1 })
 $btnClaim2.Add_Click({ Claim-Contract 2 })
@@ -1254,11 +1322,101 @@ function Get-Houses {
     if ($null -eq $Global:GameState.PSObject.Properties['Houses']) {
         $Global:GameState | Add-Member -MemberType NoteProperty -Name "Houses" -Value @() -Force
     }
-    return @($Global:GameState.Houses)
+    $list = @($Global:GameState.Houses)
+    foreach ($h in $list) {
+        if ($null -ne $h.PSObject.Properties['TotalWork']) { continue }
+        $typeName = "Rumah"
+        $tProp = $h.PSObject.Properties['Type']
+        if ($null -ne $tProp) { $typeName = [string]$tProp.Value }
+        $t = Get-TypeNeeds $typeName
+        $remaining = 0.0
+        if ($null -ne $h.PSObject.Properties['EndUtc']) {
+            try { $remaining = ((Parse-UtcSafe $h.EndUtc) - [DateTime]::UtcNow).TotalHours } catch { $remaining = 0.0 }
+            if ($remaining -lt 0) { $remaining = 0.0 }
+        }
+        $done0 = $t.Work - $remaining
+        if ($done0 -lt 0) { $done0 = 0.0 }
+        $h | Add-Member -MemberType NoteProperty -Name TotalWork -Value $t.Work -Force
+        $h | Add-Member -MemberType NoteProperty -Name WorkDone -Value $done0 -Force
+        $h | Add-Member -MemberType NoteProperty -Name Workers -Value 1 -Force
+    }
+    return $list
+}
+
+function Get-TypeNeeds([string]$typeName) {
+    $n = 0
+    if ($typeName -match '(\d+)') { $n = [int]$matches[1] }
+    if ($n -gt 0 -and $Global:Config.ContainsKey(("HouseType{0}_Hebel" -f $n))) {
+        return [PSCustomObject]@{
+            Known = $true
+            Hebel = (Get-Cfg ("HouseType{0}_Hebel" -f $n) 0.0)
+            Semen = (Get-Cfg ("HouseType{0}_Semen" -f $n) 0.0)
+            Pasir = (Get-Cfg ("HouseType{0}_Pasir" -f $n) 0.0)
+            Work  = (Get-Cfg ("HouseType{0}_WorkHours" -f $n) 90.0)
+            Min   = [int](Get-Cfg ("HouseType{0}_MinWorkers" -f $n) 1.0)
+        }
+    }
+    return [PSCustomObject]@{ Known = $false; Hebel = 0.0; Semen = 0.0; Pasir = 0.0; Work = 90.0; Min = 1 }
+}
+
+function Get-HouseValue($h) {
+    $typeName = "Rumah"
+    $tProp = $h.PSObject.Properties['Type']
+    if ($null -ne $tProp) { $typeName = [string]$tProp.Value }
+    if ($typeName -match '(\d+)') {
+        $v = Get-Cfg ("HouseType{0}_Cost" -f [int]$matches[1]) 0.0
+        if ($v -gt 0) { return $v }
+    }
+    return [double]$h.Cost
+}
+
+function Get-Materials {
+    if ($null -eq $Global:GameState.PSObject.Properties['Materials'] -or $null -eq $Global:GameState.Materials) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "Materials" -Value ([PSCustomObject]@{ Hebel = 0.0; Semen = 0.0; Pasir = 0.0 }) -Force
+    }
+    return $Global:GameState.Materials
+}
+
+function Get-BusyWorkers {
+    $busy = 0
+    foreach ($h in @(Get-Houses)) {
+        if (-not (Test-HouseDone $h)) { $busy += [int]$h.Workers }
+    }
+    return $busy
+}
+
+function Get-FreeWorkers {
+    $w = Get-Workers
+    $free = ([int]$w.Count) - (Get-BusyWorkers)
+    if ($free -lt 0) { $free = 0 }
+    return $free
+}
+
+function Get-WorkerSpeedFactor {
+    return 1.0 + ((Get-WorkerLevel) - 1) * (Get-Cfg 'WorkerSpeedBonusPerLvl' 0.02)
+}
+
+function Get-HouseRemainingSec($h) {
+    $rem = [double]$h.TotalWork - [double]$h.WorkDone
+    if ($rem -le 0) { return 0.0 }
+    $speed = ([int]$h.Workers) * (Get-WorkerSpeedFactor) / 3600.0
+    if ($speed -le 0) { return -1.0 }
+    return $rem / $speed
+}
+
+function Advance-Houses {
+    foreach ($h in @(Get-Houses)) {
+        if (Test-HouseDone $h) { continue }
+        $whPerSec = ([int]$h.Workers) * (Get-WorkerSpeedFactor) / 3600.0
+        $h | Add-Member -MemberType NoteProperty -Name WorkDone -Value (([double]$h.WorkDone) + $whPerSec) -Force
+    }
 }
 
 function Test-HouseDone($h) {
-    try { return ([DateTime]::UtcNow -ge (Parse-UtcSafe $h.EndUtc)) } catch { return $true }
+    $wd = $h.PSObject.Properties['WorkDone']
+    $tw = $h.PSObject.Properties['TotalWork']
+    if ($null -eq $wd -or $null -eq $tw) { return $false }
+    return ([double]$wd.Value -ge [double]$tw.Value)
 }
 
 function Get-HouseById($id) {
@@ -1267,8 +1425,11 @@ function Get-HouseById($id) {
 }
 
 function Get-HouseSellPrice($h) {
-    $markup = (Get-Cfg 'BuildSellMarkupPct' 50.0)
-    return [double]$h.Cost * (1 + ($markup / 100))
+    return (Get-HouseValue $h) * (1 + ((Get-Cfg 'BuildSellMarkupPct' 50.0) / 100))
+}
+
+function Get-HouseNet($price) {
+    return $price * (1 - ((Get-Cfg 'SellTaxPct' 10.0) / 100))
 }
 
 function Get-Auction {
@@ -1292,24 +1453,40 @@ function Get-AuctionPct($a) {
 }
 
 function Get-AuctionSellPrice($a, $h) {
-    return [double]$h.Cost * (1 + (Get-AuctionPct $a) / 100)
+    return (Get-HouseValue $h) * (1 + (Get-AuctionPct $a) / 100)
 }
 
-function Build-House([string]$typeName, [double]$cost, [double]$waitMin) {
-    if ($Global:GameState.Player.Money -lt $cost) {
-        [System.Windows.Forms.MessageBox]::Show("Uang tidak cukup! Butuh Rp $cost")
+function Build-House([string]$typeName) {
+    $t = Get-TypeNeeds $typeName
+    $free = Get-FreeWorkers
+    if ($free -lt $t.Min) {
+        [System.Windows.Forms.MessageBox]::Show(("Pekerja siap kurang: butuh min {0}, siap {1}. Rekrut pekerja dulu." -f $t.Min, $free))
         return
     }
-    $Global:GameState.Player.Money -= $cost
+    $m = Get-Materials
+    $short = @()
+    if (([double]$m.Hebel) -lt $t.Hebel) { $short += ("{0:N0} hebel" -f ($t.Hebel - $m.Hebel)) }
+    if (([double]$m.Semen) -lt $t.Semen) { $short += ("{0:N0} sak semen" -f ($t.Semen - $m.Semen)) }
+    if (([double]$m.Pasir) -lt $t.Pasir) { $short += ("{0:N0} m3 pasir" -f ($t.Pasir - $m.Pasir)) }
+    if ($short.Count -gt 0) {
+        [System.Windows.Forms.MessageBox]::Show(("Bahan kurang: {0}. Beli bahan dulu." -f ($short -join ", ")))
+        return
+    }
+    $m | Add-Member -MemberType NoteProperty -Name Hebel -Value (([double]$m.Hebel) - $t.Hebel) -Force
+    $m | Add-Member -MemberType NoteProperty -Name Semen -Value (([double]$m.Semen) - $t.Semen) -Force
+    $m | Add-Member -MemberType NoteProperty -Name Pasir -Value (([double]$m.Pasir) - $t.Pasir) -Force
+    $matCost = ($t.Hebel * (Get-Cfg 'HebelPrice' 300.0)) + ($t.Semen * (Get-Cfg 'SemenPrice' 2000.0)) + ($t.Pasir * (Get-Cfg 'PasirPrice' 15000.0))
     $house = [PSCustomObject]@{
-        Id     = [Guid]::NewGuid().ToString("N")
-        Type   = $typeName
-        EndUtc = [DateTime]::UtcNow.AddMinutes($waitMin).ToString('o')
-        Cost   = $cost
+        Id        = [Guid]::NewGuid().ToString("N")
+        Type      = $typeName
+        TotalWork = $t.Work
+        WorkDone  = 0.0
+        Workers   = $free
+        Cost      = $matCost
     }
     $Global:GameState.Houses = @(@(Get-Houses) + @($house))
     Add-WorkStat 'HouseBuilt' 1
-    Add-WorkStat 'HouseSpend' $cost
+    Add-WorkStat 'HouseSpend' $matCost
     Update-BuildUI
     Update-WorkStatsUI
     Update-AllUI
@@ -1334,32 +1511,39 @@ function Update-BuildUI {
         $sisa = "-"
         if (-not $done) {
             $nBuilding++
-            $ts = (Parse-UtcSafe $h.EndUtc) - [DateTime]::UtcNow
-            if ($ts.TotalSeconds -lt 60) { $sisa = "$([int][Math]::Ceiling($ts.TotalSeconds))s" } else { $sisa = "{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds }
+            $remSec = Get-HouseRemainingSec $h
+            if ($remSec -lt 0) { $sisa = "-" }
+            elseif ($remSec -lt 3600) { $sisa = "{0}m {1:00}s" -f [int]($remSec / 60), ([int]$remSec % 60) }
+            else { $sisa = "{0}j {1:00}m" -f [int]($remSec / 3600), ([int]($remSec % 3600) / 60) }
         } else { $nDone++ }
         $hType = "Rumah"
         $tProp = $h.PSObject.Properties['Type']
         if ($null -ne $tProp) { $hType = [string]$tProp.Value }
         $price = Get-HouseSellPrice $h
-        $profit = $price - [double]$h.Cost
+        $net = Get-HouseNet $price
+        $profit = $net - [double]$h.Cost
         $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
         [void]$item.SubItems.Add($hType)
         [void]$item.SubItems.Add($(if ($done) { "Selesai" } else { "Membangun" }))
+        [void]$item.SubItems.Add([string][int]$h.Workers)
         [void]$item.SubItems.Add($sisa)
         [void]$item.SubItems.Add(("Rp {0:N0}" -f $h.Cost))
         [void]$item.SubItems.Add(("+Rp {0:N0}" -f $profit))
         [void]$item.SubItems.Add(("Rp {0:N0}" -f $price))
         $item.Tag = $h.Id
-        if ($done) { $item.ForeColor = [System.Drawing.Color]::Green; $item.SubItems[5].ForeColor = [System.Drawing.Color]::Green }
+        if ($done) { $item.ForeColor = [System.Drawing.Color]::Green; $item.SubItems[6].ForeColor = [System.Drawing.Color]::Green }
         [void]$lvBuilds.Items.Add($item)
         $i++
     }
     $lvBuilds.EndUpdate()
     if ($selId) { foreach ($it in $lvBuilds.Items) { if ($it.Tag -eq $selId) { $it.Selected = $true; break } } }
     $selDone = $false
+    $selBuilding = $false
     if ($lvBuilds.SelectedItems.Count -gt 0) {
         $h = Get-HouseById $lvBuilds.SelectedItems[0].Tag
-        if ($null -ne $h -and (Test-HouseDone $h)) { $selDone = $true }
+        if ($null -ne $h) {
+            if (Test-HouseDone $h) { $selDone = $true } else { $selBuilding = $true }
+        }
     }
     $btnBuildSell.Enabled = $selDone
 
@@ -1383,14 +1567,101 @@ function Update-BuildUI {
     }
     $btnBuildAuction.Enabled = ($null -eq $a) -and $selDone
 
+    $free = Get-FreeWorkers
+    $busy = Get-BusyWorkers
+    $lvl = Get-WorkerLevel
+    $lblWorkersInfo.Text = "Pekerja: siap {0} | bekerja {1} | level {2} (kecepatan +{3:N0}%)" -f $free, $busy, $lvl, (((Get-WorkerSpeedFactor) - 1.0) * 100)
+    $costHire = Get-WorkerHireCost
+    $btnBuildHire.Text = "Rekrut (Rp {0:N0})" -f $costHire
+    $btnBuildHire.Enabled = ([double]$Global:GameState.Player.Money -ge $costHire)
+    $btnBuildAddWorker.Enabled = $selBuilding -and ($free -gt 0)
+
+    $m = Get-Materials
+    $lblMatHebel.Text = "Hebel: stok {0:N0} (Rp {1:N0}/pcs)" -f ([double]$m.Hebel), (Get-Cfg 'HebelPrice' 300.0)
+    $lblMatSemen.Text = "Semen: stok {0:N0} (Rp {1:N0}/sak)" -f ([double]$m.Semen), (Get-Cfg 'SemenPrice' 2000.0)
+    $lblMatPasir.Text = "Pasir: stok {0:N0} m3 (Rp {1:N0}/m3)" -f ([double]$m.Pasir), (Get-Cfg 'PasirPrice' 15000.0)
+
+    foreach ($pair in @(@($btnBuildT21, 21), @($btnBuildT45, 45), @($btnBuildT90, 90), @($btnBuildT120, 120))) {
+        $t = Get-TypeNeeds ("Type {0}" -f $pair[1])
+        $ok = ($free -ge $t.Min)
+        if (([double]$m.Hebel) -lt $t.Hebel) { $ok = $false }
+        if (([double]$m.Semen) -lt $t.Semen) { $ok = $false }
+        if (([double]$m.Pasir) -lt $t.Pasir) { $ok = $false }
+        $pair[0].Enabled = $ok
+    }
+
     if ($houses.Count -eq 0) { $lblBuildStatus.Text = "Status: Belum ada bangunan." }
     else { $lblBuildStatus.Text = "Status: $nBuilding membangun, $nDone selesai" }
+    if ($free -eq 0 -and $nBuilding -eq 0) { $lblBuildStatus.Text = $lblBuildStatus.Text + " | Rekrut pekerja dulu untuk bisa bangun." }
 }
 
-$btnBuildT21.Add_Click({ Build-House "Type 21" $Global:Config.HouseType21_Cost $Global:Config.HouseType21_Wait })
-$btnBuildT45.Add_Click({ Build-House "Type 45" $Global:Config.HouseType45_Cost $Global:Config.HouseType45_Wait })
-$btnBuildT90.Add_Click({ Build-House "Type 90" $Global:Config.HouseType90_Cost $Global:Config.HouseType90_Wait })
-$btnBuildT120.Add_Click({ Build-House "Type 120" $Global:Config.HouseType120_Cost $Global:Config.HouseType120_Wait })
+$btnBuildT21.Add_Click({ Build-House "Type 21" })
+$btnBuildT45.Add_Click({ Build-House "Type 45" })
+$btnBuildT90.Add_Click({ Build-House "Type 90" })
+$btnBuildT120.Add_Click({ Build-House "Type 120" })
+$btnBuildHire.Add_Click({ Hire-Worker })
+$btnBuildAddWorker.Add_Click({
+    if ($lvBuilds.SelectedItems.Count -eq 0) { return }
+    $h = Get-HouseById $lvBuilds.SelectedItems[0].Tag
+    if ($null -eq $h -or (Test-HouseDone $h)) { return }
+    if ((Get-FreeWorkers) -le 0) {
+        [System.Windows.Forms.MessageBox]::Show("Tidak ada pekerja siap. Rekrut pekerja dulu.")
+        return
+    }
+    $h | Add-Member -MemberType NoteProperty -Name Workers -Value (([int]$h.Workers) + 1) -Force
+    Update-BuildUI
+})
+
+$btnBuyHebel.Add_Click({
+    $qty = 0
+    try { $qty = [int]$txtBuyHebel.Text } catch { $qty = 0 }
+    if ($qty -le 0) { return }
+    $cost = $qty * (Get-Cfg 'HebelPrice' 300.0)
+    if ([double]$Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
+        return
+    }
+    $Global:GameState.Player.Money -= $cost
+    $m = Get-Materials
+    $m | Add-Member -MemberType NoteProperty -Name Hebel -Value (([double]$m.Hebel) + $qty) -Force
+    $txtBuyHebel.Text = ""
+    Update-BuildUI
+    Update-AllUI
+})
+
+$btnBuySemen.Add_Click({
+    $qty = 0
+    try { $qty = [int]$txtBuySemen.Text } catch { $qty = 0 }
+    if ($qty -le 0) { return }
+    $cost = $qty * (Get-Cfg 'SemenPrice' 2000.0)
+    if ([double]$Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
+        return
+    }
+    $Global:GameState.Player.Money -= $cost
+    $m = Get-Materials
+    $m | Add-Member -MemberType NoteProperty -Name Semen -Value (([double]$m.Semen) + $qty) -Force
+    $txtBuySemen.Text = ""
+    Update-BuildUI
+    Update-AllUI
+})
+
+$btnBuyPasir.Add_Click({
+    $qty = 0
+    try { $qty = [int]$txtBuyPasir.Text } catch { $qty = 0 }
+    if ($qty -le 0) { return }
+    $cost = $qty * (Get-Cfg 'PasirPrice' 15000.0)
+    if ([double]$Global:GameState.Player.Money -lt $cost) {
+        [System.Windows.Forms.MessageBox]::Show(("Uang tidak cukup! Butuh Rp {0:N0}" -f $cost))
+        return
+    }
+    $Global:GameState.Player.Money -= $cost
+    $m = Get-Materials
+    $m | Add-Member -MemberType NoteProperty -Name Pasir -Value (([double]$m.Pasir) + $qty) -Force
+    $txtBuyPasir.Text = ""
+    Update-BuildUI
+    Update-AllUI
+})
 
 $btnBuildSell.Add_Click({
     if ($lvBuilds.SelectedItems.Count -eq 0) { return }
@@ -1406,14 +1677,16 @@ $btnBuildSell.Add_Click({
         $sellPrice = Get-AuctionSellPrice $a $h
         $Global:GameState | Add-Member -MemberType NoteProperty -Name Auction -Value $null -Force
     }
-    $Global:GameState.Player.Money += $sellPrice
+    $net = Get-HouseNet $sellPrice
+    $tax = $sellPrice - $net
+    $Global:GameState.Player.Money += $net
     $Global:GameState.Houses = @(@(Get-Houses) | Where-Object { $_.Id -ne $id })
     Add-WorkStat 'HouseSold' 1
-    Add-WorkStat 'HouseIncome' $sellPrice
+    Add-WorkStat 'HouseIncome' $net
     Update-BuildUI
     Update-WorkStatsUI
     Update-AllUI
-    [System.Windows.Forms.MessageBox]::Show("Rumah terjual! +Rp $sellPrice")
+    [System.Windows.Forms.MessageBox]::Show(("Rumah terjual! Harga Rp {0:N0}, pajak Rp {1:N0}, diterima Rp {2:N0}" -f $sellPrice, $tax, $net))
 })
 
 $btnBuildAuction.Add_Click({
@@ -1963,8 +2236,9 @@ $timer.Add_Tick({
             try { $until = [DateTime]::Parse($Global:GameState.Flags.StockBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind); if ([DateTime]::UtcNow -lt $until) { $buff = [double]$Global:GameState.Flags.StockBuffMult } } catch {}
         }
         
-        $Global:GameState.Player.Money += $rate * $buff + (Get-WorkerRate)
+        $Global:GameState.Player.Money += $rate * $buff
         $Global:GameState.Player.PlaytimeSec += 1
+        Advance-Houses
         
         $Global:SaveCounter++
         if ($Global:SaveCounter -ge 30) {
