@@ -114,6 +114,7 @@ $Global:Config = @{
 
     # --- PAJAK & PEKERJA ---
     SellTaxPct = 10.0              # pajak saat menjual rumah (% harga jual)
+    SellMaterialBonusPct = 2.0     # bonus bahan saat jual rumah (% kebutuhan bahan tipe itu)
     WorkerSpeedBonusPerLvl = 0.02  # +2% kecepatan bangun per level pekerja
     WorkerBaseCost      = 25000.0   # upah/harga rekrut pekerja pertama
     WorkerCostGrowth    = 1.35      # harga rekrut berikutnya = base x growth^jumlah
