@@ -214,7 +214,7 @@
                     if (st.status === 'Executed') { alert('Aksi beli tercatat di DashboardGUI ✔ (' + qty + ' ' + ticker + ')'); }
                     else if (st.status === 'Held') { alert('Order ditahan: ' + (st.message || 'uang belum cukup') + '. Otomatis dieksekusi saat uang cukup.'); }
                     else if (st.status === 'Failed') { alert('Aksi beli gagal diproses di dashboard: ' + (st.message || 'tidak valid')); }
-                    else { alert('Belum ada konfirmasi dari DashboardGUI (GUI untuk profil ini mungkin tidak terbuka). Order tetap menunggu di antrian.'); }
+                    else { alert('Belum ada konfirmasi dari dashboard (GUI/TUI untuk profil ini mungkin tidak terbuka, atau masih ada proses lama berjalan). Order tetap menunggu di antrian.'); }
                 }
                 else { alert('Gagal: ' + data.message); }
                 loadStocks();
