@@ -37,6 +37,7 @@ $Global:ProfilesDir = Join-Path $Global:RootPath "Data\profiles"
 $Global:StocksPath  = Join-Path $Global:RootPath "Data\stocks.json"
 $Global:QueuePath   = Join-Path $Global:RootPath "Data\queue.json"
 $Global:ReceiptsPath = Join-Path $Global:RootPath "Data\receipts.json"
+$Global:HouseMarketPath = Join-Path $Global:RootPath "Data\house_market.json"
 $Global:QueueLockPath = Join-Path $Global:RootPath "Data\queue.lock"
 $Global:ProcessedOrderIds = New-Object System.Collections.Generic.List[string]
 $Global:QueueSeenIds = New-Object System.Collections.Generic.List[string]
@@ -54,7 +55,7 @@ $Global:ZoomLevel = 1.0
 # Load Config
 $Global:Config = @{}
 if (Test-Path $Global:ConfigPath) { . $Global:ConfigPath } 
-else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; HouseType21_Hebel=790; HouseType21_Semen=55; HouseType21_Pasir=10; HouseType21_WorkHours=90.0; HouseType21_MinWorkers=3; HouseType45_Hebel=1580; HouseType45_Semen=110; HouseType45_Pasir=20; HouseType45_WorkHours=180.0; HouseType45_MinWorkers=5; HouseType90_Hebel=3950; HouseType90_Semen=275; HouseType90_Pasir=50; HouseType90_WorkHours=270.0; HouseType90_MinWorkers=8; HouseType120_Hebel=7900; HouseType120_Semen=550; HouseType120_Pasir=100; HouseType120_WorkHours=360.0; HouseType120_MinWorkers=10; HebelPrice=300.0; SemenPrice=2000.0; PasirPrice=15000.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0; WorkerSpeedBonusPerLvl=0.02; SellTaxPct=10.0 } }
+else { $Global:Config = @{ MathWorkAutoMult=3.0; MathWorkAutoSec=20.0; MathWorkFastBonusClickMult=5.0; MathWorkFastBonusClickSec=15.0; MathWorkRewardBase=1000.0; BuildMaterialCost=500000; BuildLaborCost=200000; BuildWaitMinutes=30; BuildSellMarkupPct=50; HouseType21_Cost=500000.0; HouseType21_Wait=20.0; HouseType45_Cost=1000000.0; HouseType45_Wait=30.0; HouseType90_Cost=2500000.0; HouseType90_Wait=45.0; HouseType120_Cost=5000000.0; HouseType120_Wait=60.0; HouseType21_Hebel=790; HouseType21_Semen=55; HouseType21_Pasir=10; HouseType21_WorkHours=90.0; HouseType21_MinWorkers=3; HouseType45_Hebel=1580; HouseType45_Semen=110; HouseType45_Pasir=20; HouseType45_WorkHours=180.0; HouseType45_MinWorkers=5; HouseType90_Hebel=3950; HouseType90_Semen=275; HouseType90_Pasir=50; HouseType90_WorkHours=270.0; HouseType90_MinWorkers=8; HouseType120_Hebel=7900; HouseType120_Semen=550; HouseType120_Pasir=100; HouseType120_WorkHours=360.0; HouseType120_MinWorkers=10; HebelPrice=300.0; SemenPrice=2000.0; PasirPrice=15000.0; ContractRewardBase=5000.0; AuctionDurationSec=30.0; AuctionMaxMarkupPct=120.0; WorkerBaseCost=25000.0; WorkerCostGrowth=1.35; WorkerXpPerLevel=10.0; WorkerSpeedBonusPerLvl=0.02; SellTaxPct=10.0; RentYieldPctPerHour=0.10; Facility_Carport_Cost=75000.0; Facility_Carport_RentPct=10.0; Facility_Taman_Cost=150000.0; Facility_Taman_RentPct=15.0; Facility_Kolam_Cost=250000.0; Facility_Kolam_RentPct=25.0; Facility_Rooftop_Cost=400000.0; Facility_Rooftop_RentPct=35.0 } }
 
 function Get-Cfg([string]$key, [double]$def) {
     try { if ($Global:Config.ContainsKey($key)) { return [double]$Global:Config[$key] } } catch {}
@@ -685,11 +686,12 @@ $btnMenuType = Create-ActionButton "2. Ketik Ulang" 10 130 180 50 $ColorAccent
 $btnMenuBuild = Create-ActionButton "3. Developer Bangunan" 10 190 180 50 $ColorAccent
 $btnMenuContract = Create-ActionButton "4. Kontrak Harian" 10 255 180 50 $ColorAccent
 $btnMenuWorker = Create-ActionButton "5. Pekerja" 10 315 180 50 $ColorAccent
+$btnMenuMarket = Create-ActionButton "6. Pasar Rumah" 10 375 180 50 $ColorSuccess
 $lblMenuCash = New-Object System.Windows.Forms.Label
 $lblMenuCash.Text = "Cash: Rp 0"
 $lblMenuCash.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $lblMenuCash.ForeColor = $ColorSuccess
-$lblMenuCash.Location = New-Object System.Drawing.Point(10, 375)
+$lblMenuCash.Location = New-Object System.Drawing.Point(10, 435)
 $lblMenuCash.AutoSize = $true
 $panelMenu.Controls.Add($lblMenuCash)
 $panelMenu.Controls.Add($btnMenuStat)
@@ -698,6 +700,7 @@ $panelMenu.Controls.Add($btnMenuType)
 $panelMenu.Controls.Add($btnMenuBuild)
 $panelMenu.Controls.Add($btnMenuContract)
 $panelMenu.Controls.Add($btnMenuWorker)
+$panelMenu.Controls.Add($btnMenuMarket)
 
 # --- PANEL KANAN: KONTEN ---
 $panelContent = New-Object System.Windows.Forms.Panel
@@ -1009,6 +1012,88 @@ $lblAuction.Location = New-Object System.Drawing.Point(460, 555)
 $lblAuction.AutoSize = $true
 $panelBuild.Controls.Add($lblAuction)
 
+$panelMarket = New-Object System.Windows.Forms.Panel
+$panelMarket.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelMarket.Visible = $false
+$panelContent.Controls.Add($panelMarket)
+
+$lblMarketTitle = New-Object System.Windows.Forms.Label
+$lblMarketTitle.Text = "Pasar Rumah"
+$lblMarketTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+$lblMarketTitle.ForeColor = $ColorText
+$lblMarketTitle.Location = New-Object System.Drawing.Point(20, 10)
+$lblMarketTitle.AutoSize = $true
+$panelMarket.Controls.Add($lblMarketTitle)
+
+$lblMarketNote = New-Object System.Windows.Forms.Label
+$lblMarketNote.Text = "Rumah yang dijual/lelang masuk ke sini - bisa dilihat & dibeli semua profil."
+$lblMarketNote.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$lblMarketNote.ForeColor = [System.Drawing.Color]::Gray
+$lblMarketNote.Location = New-Object System.Drawing.Point(20, 42)
+$lblMarketNote.AutoSize = $true
+$panelMarket.Controls.Add($lblMarketNote)
+
+$lvMarketList = New-Object System.Windows.Forms.ListView
+$lvMarketList.View = [System.Windows.Forms.View]::Details
+$lvMarketList.FullRowSelect = $true
+$lvMarketList.GridLines = $true
+$lvMarketList.Location = New-Object System.Drawing.Point(20, 68)
+$lvMarketList.Size = New-Object System.Drawing.Size(540, 150)
+$lvMarketList.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+[void]$lvMarketList.Columns.Add("Tipe", 100)
+[void]$lvMarketList.Columns.Add("Harga", 110)
+[void]$lvMarketList.Columns.Add("Fasilitas", 150)
+[void]$lvMarketList.Columns.Add("Dari Profil", 160)
+$panelMarket.Controls.Add($lvMarketList)
+
+$btnMarketBuy = Create-ActionButton "Beli Rumah" 20 228 160 40 $ColorSuccess
+$btnMarketBuy.Enabled = $false
+$panelMarket.Controls.Add($btnMarketBuy)
+
+$lblRentTitle = New-Object System.Windows.Forms.Label
+$lblRentTitle.Text = "Rumah Milik (Sewa)"
+$lblRentTitle.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$lblRentTitle.ForeColor = $ColorText
+$lblRentTitle.Location = New-Object System.Drawing.Point(20, 280)
+$lblRentTitle.AutoSize = $true
+$panelMarket.Controls.Add($lblRentTitle)
+
+$lvRentals = New-Object System.Windows.Forms.ListView
+$lvRentals.View = [System.Windows.Forms.View]::Details
+$lvRentals.FullRowSelect = $true
+$lvRentals.GridLines = $true
+$lvRentals.Location = New-Object System.Drawing.Point(20, 310)
+$lvRentals.Size = New-Object System.Drawing.Size(540, 145)
+$lvRentals.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+[void]$lvRentals.Columns.Add("Tipe", 90)
+[void]$lvRentals.Columns.Add("Fasilitas", 150)
+[void]$lvRentals.Columns.Add("Sewa/Jam", 100)
+[void]$lvRentals.Columns.Add("Status", 80)
+[void]$lvRentals.Columns.Add("Nilai", 120)
+$panelMarket.Controls.Add($lvRentals)
+
+$btnRentToggle = Create-ActionButton "Mulai/Berhenti Sewa" 20 465 190 40 $ColorAccent
+$btnRentToggle.Enabled = $false
+$panelMarket.Controls.Add($btnRentToggle)
+
+$cmbFacility = New-Object System.Windows.Forms.ComboBox
+$cmbFacility.Location = New-Object System.Drawing.Point(225, 470)
+$cmbFacility.Size = New-Object System.Drawing.Size(145, 30)
+$cmbFacility.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$panelMarket.Controls.Add($cmbFacility)
+
+$btnFacilityAdd = Create-ActionButton "Tambah Fasilitas" 385 465 175 40 $ColorSuccess
+$btnFacilityAdd.Enabled = $false
+$panelMarket.Controls.Add($btnFacilityAdd)
+
+$lblRentInfo = New-Object System.Windows.Forms.Label
+$lblRentInfo.Text = "Sewa masuk: Rp 0/jam"
+$lblRentInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$lblRentInfo.ForeColor = $ColorSuccess
+$lblRentInfo.Location = New-Object System.Drawing.Point(20, 515)
+$lblRentInfo.AutoSize = $true
+$panelMarket.Controls.Add($lblRentInfo)
+
 # --- LOGIKA TAB KERJA ---
 $Global:MathCurrentAnswer = 0
 $Global:MathStartTime = $null
@@ -1021,6 +1106,7 @@ function Show-WorkPanel($panel) {
     $panelBuild.Visible = $false
     $panelContract.Visible = $false
     $panelWorker.Visible = $false
+    $panelMarket.Visible = $false
     $panel.Visible = $true
 }
 
@@ -1213,6 +1299,10 @@ $btnMenuType.Add_Click({ Show-WorkPanel $panelType; Generate-TypeQuestion })
 $btnMenuBuild.Add_Click({ Show-WorkPanel $panelBuild; Update-BuildUI })
 $btnMenuContract.Add_Click({ Show-WorkPanel $panelContract; Update-ContractsUI })
 $btnMenuWorker.Add_Click({ Show-WorkPanel $panelWorker; Update-WorkerUI })
+$btnMenuMarket.Add_Click({ Show-WorkPanel $panelMarket; Update-MarketUI })
+$btnMarketBuy.Add_Click({ Buy-MarketHouse })
+$btnRentToggle.Add_Click({ Toggle-Rent })
+$btnFacilityAdd.Add_Click({ Add-FacilityToSelected })
 
 function Generate-MathQuestion {
     $lim = [Math]::Min(4 + [int]$Global:GameState.Sectors.Clicker.Level, 12)
@@ -1492,6 +1582,244 @@ function Build-House([string]$typeName) {
     Update-AllUI
 }
 
+function Get-FacilityDefs {
+    $list = @()
+    foreach ($n in @('Carport','Taman','Kolam','Rooftop')) {
+        $cost = Get-Cfg ("Facility_{0}_Cost" -f $n) 0.0
+        if ($cost -gt 0) {
+            $list += [PSCustomObject]@{ Name = $n; Cost = $cost; RentPct = (Get-Cfg ("Facility_{0}_RentPct" -f $n) 0.0) }
+        }
+    }
+    return @($list)
+}
+
+function Get-HouseMarket {
+    try {
+        if (-not (Test-Path $Global:HouseMarketPath)) { return @() }
+        $raw = [System.IO.File]::ReadAllText($Global:HouseMarketPath)
+        if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
+        $parsed = $raw -replace "^\uFEFF", "" | ConvertFrom-Json
+        return @($parsed)
+    } catch { return @() }
+}
+
+function Save-HouseMarket($list) {
+    $lastErr = $null
+    for ($i = 0; $i -lt 10; $i++) {
+        try {
+            $tmp = $Global:HouseMarketPath + ".tmp"
+            ConvertTo-Json -InputObject @($list) -Depth 5 -Compress | Set-Content $tmp -Encoding UTF8
+            Move-Item $tmp $Global:HouseMarketPath -Force
+            return
+        } catch { $lastErr = $_; Start-Sleep -Milliseconds 100 }
+    }
+    Write-Host ("[PASAR][ERROR] Gagal menulis Data\house_market.json: " + $lastErr.Exception.Message) -ForegroundColor Red
+}
+
+function Add-HouseMarketListing($h, $price) {
+    try {
+        $type = "Rumah"
+        $tProp = $h.PSObject.Properties['Type']
+        if ($null -ne $tProp) { $type = [string]$tProp.Value }
+        $cost = 0.0
+        $cProp = $h.PSObject.Properties['Cost']
+        if ($null -ne $cProp) { try { $cost = [double]$cProp.Value } catch { $cost = 0.0 } }
+        $fac = @()
+        $fProp = $h.PSObject.Properties['Facilities']
+        if ($null -ne $fProp -and $null -ne $fProp.Value) { $fac = @($fProp.Value) }
+        $entry = @{ Id = [Guid]::NewGuid().ToString("N"); Type = $type; Price = [Math]::Round([double]$price, 2); Cost = $cost; Facilities = $fac; Seller = [string]$Global:ActiveProfileName; Time = [DateTime]::UtcNow.ToString('o') }
+        $list = @(Get-HouseMarket)
+        $list += $entry
+        if ($list.Count -gt 100) { $list = @($list | Select-Object -Last 100) }
+        Save-HouseMarket $list
+    } catch {
+        Write-Host ("[PASAR][ERROR] Gagal mencatat rumah ke pasar: " + $_.Exception.Message) -ForegroundColor Red
+    }
+}
+
+function Get-Rentals {
+    if ($null -eq $Global:GameState.PSObject.Properties['Rentals'] -or $null -eq $Global:GameState.Rentals) {
+        $Global:GameState | Add-Member -MemberType NoteProperty -Name "Rentals" -Value @() -Force
+    }
+    return @($Global:GameState.Rentals)
+}
+
+function Get-RentPerHour($r) {
+    $base = (Get-HouseValue $r) * ((Get-Cfg 'RentYieldPctPerHour' 0.10) / 100.0)
+    $mult = 1.0
+    $fProp = $r.PSObject.Properties['Facilities']
+    if ($null -ne $fProp -and $null -ne $fProp.Value) {
+        foreach ($fn in @($fProp.Value)) {
+            $mult += ((Get-Cfg ("Facility_{0}_RentPct" -f $fn) 0.0) / 100.0)
+        }
+    }
+    return $base * $mult
+}
+
+function Advance-Rentals([double]$sec) {
+    foreach ($r in (Get-Rentals)) {
+        $on = $r.PSObject.Properties['Renting']
+        if ($null -ne $on -and $on.Value) {
+            $Global:GameState.Player.Money += (Get-RentPerHour $r) * $sec / 3600.0
+        }
+    }
+}
+
+function Buy-MarketHouse {
+    if ($lvMarketList.SelectedItems.Count -eq 0) { return }
+    $id = $lvMarketList.SelectedItems[0].Tag
+    $list = @(Get-HouseMarket)
+    $entry = $null
+    foreach ($m in $list) {
+        $idP = $m.PSObject.Properties['Id']
+        if ($null -ne $idP -and $idP.Value -eq $id) { $entry = $m; break }
+    }
+    if ($null -eq $entry) { return }
+    $price = 0.0
+    $pp = $entry.PSObject.Properties['Price']
+    if ($null -ne $pp) { try { $price = [double]$pp.Value } catch { $price = 0.0 } }
+    if ([double]$Global:GameState.Player.Money -lt $price) {
+        [System.Windows.Forms.MessageBox]::Show(("Cash kurang. Harga Rp {0:N0}, cash Rp {1:N0}." -f $price, [double]$Global:GameState.Player.Money))
+        return
+    }
+    $type = "Rumah"
+    $tp = $entry.PSObject.Properties['Type']
+    if ($null -ne $tp) { $type = [string]$tp.Value }
+    $cost = 0.0
+    $cp = $entry.PSObject.Properties['Cost']
+    if ($null -ne $cp) { try { $cost = [double]$cp.Value } catch { $cost = 0.0 } }
+    $fac = @()
+    $fp = $entry.PSObject.Properties['Facilities']
+    if ($null -ne $fp -and $null -ne $fp.Value) { $fac = @($fp.Value) }
+    $Global:GameState.Player.Money -= $price
+    $rental = [PSCustomObject]@{ Id = [Guid]::NewGuid().ToString("N"); Type = $type; Cost = $cost; Facilities = $fac; Renting = $true }
+    $Global:GameState.Rentals = @(Get-Rentals) + @($rental)
+    $kept = @()
+    foreach ($m in $list) {
+        $idP = $m.PSObject.Properties['Id']
+        if ($null -ne $idP -and $idP.Value -eq $id) { continue }
+        $kept += $m
+    }
+    Save-HouseMarket $kept
+    Add-WorkStat 'HouseBought' 1
+    Update-MarketUI
+    Update-AllUI
+    [System.Windows.Forms.MessageBox]::Show(("Rumah {0} dibeli Rp {1:N0}! Sewa langsung masuk per jam." -f $type, $price))
+}
+
+function Toggle-Rent {
+    if ($lvRentals.SelectedItems.Count -eq 0) { return }
+    $rid = $lvRentals.SelectedItems[0].Tag
+    foreach ($r in (Get-Rentals)) {
+        if ($r.Id -ne $rid) { continue }
+        $on = $false
+        $op = $r.PSObject.Properties['Renting']
+        if ($null -ne $op) { $on = [bool]$op.Value }
+        $r | Add-Member -MemberType NoteProperty -Name Renting -Value (-not $on) -Force
+        break
+    }
+    Update-MarketUI
+}
+
+function Add-FacilityToSelected {
+    if ($lvRentals.SelectedItems.Count -eq 0) { return }
+    $fname = ""
+    if ($null -ne $cmbFacility.SelectedItem) { $fname = [string]$cmbFacility.SelectedItem }
+    if ($fname -eq "") {
+        [System.Windows.Forms.MessageBox]::Show("Pilih fasilitas dulu di daftar.")
+        return
+    }
+    $rid = $lvRentals.SelectedItems[0].Tag
+    foreach ($r in (Get-Rentals)) {
+        if ($r.Id -ne $rid) { continue }
+        $fac = @()
+        $fp = $r.PSObject.Properties['Facilities']
+        if ($null -ne $fp -and $null -ne $fp.Value) { $fac = @($fp.Value) }
+        if ($fac -contains $fname) {
+            [System.Windows.Forms.MessageBox]::Show(("Fasilitas {0} sudah terpasang di rumah ini." -f $fname))
+            return
+        }
+        $cost = (Get-Cfg ("Facility_{0}_Cost" -f $fname) 0.0)
+        if ([double]$Global:GameState.Player.Money -lt $cost) {
+            [System.Windows.Forms.MessageBox]::Show(("Cash kurang. Butuh Rp {0:N0}, cash Rp {1:N0}." -f $cost, [double]$Global:GameState.Player.Money))
+            return
+        }
+        $Global:GameState.Player.Money -= $cost
+        $fac += $fname
+        $r | Add-Member -MemberType NoteProperty -Name Facilities -Value $fac -Force
+        Add-WorkStat 'FacilitySpend' $cost
+        Update-MarketUI
+        Update-AllUI
+        [System.Windows.Forms.MessageBox]::Show(("Fasilitas {0} terpasang (Rp {1:N0}). Sewa naik!" -f $fname, $cost))
+        return
+    }
+}
+
+function Update-MarketUI {
+    if ($null -eq $Global:GameState) { return }
+    $list = @(Get-HouseMarket)
+    $selId = $null
+    if ($lvMarketList.SelectedItems.Count -gt 0) { $selId = $lvMarketList.SelectedItems[0].Tag }
+    $lvMarketList.BeginUpdate()
+    $lvMarketList.Items.Clear()
+    foreach ($m in $list) {
+        $mType = "Rumah"
+        $p = $m.PSObject.Properties['Type']
+        if ($null -ne $p) { $mType = [string]$p.Value }
+        $price = 0.0
+        $p2 = $m.PSObject.Properties['Price']
+        if ($null -ne $p2) { try { $price = [double]$p2.Value } catch { $price = 0.0 } }
+        $seller = "-"
+        $p3 = $m.PSObject.Properties['Seller']
+        if ($null -ne $p3 -and $p3.Value) { $seller = [string]$p3.Value }
+        $fac = "-"
+        $p4 = $m.PSObject.Properties['Facilities']
+        if ($null -ne $p4 -and $null -ne $p4.Value -and @($p4.Value).Count -gt 0) { $fac = (@($p4.Value) -join ", ") }
+        $item = New-Object System.Windows.Forms.ListViewItem($mType)
+        [void]$item.SubItems.Add(("Rp {0:N0}" -f $price))
+        [void]$item.SubItems.Add($fac)
+        [void]$item.SubItems.Add($seller)
+        $idP = $m.PSObject.Properties['Id']
+        if ($null -ne $idP) { $item.Tag = $idP.Value }
+        [void]$lvMarketList.Items.Add($item)
+    }
+    $lvMarketList.EndUpdate()
+    if ($selId) { foreach ($it in $lvMarketList.Items) { if ($it.Tag -eq $selId) { $it.Selected = $true; break } } }
+    $btnMarketBuy.Enabled = ($lvMarketList.SelectedItems.Count -gt 0)
+
+    $selRid = $null
+    if ($lvRentals.SelectedItems.Count -gt 0) { $selRid = $lvRentals.SelectedItems[0].Tag }
+    $totalRent = 0.0
+    $lvRentals.BeginUpdate()
+    $lvRentals.Items.Clear()
+    foreach ($r in (Get-Rentals)) {
+        $rType = "Rumah"
+        $rp = $r.PSObject.Properties['Type']
+        if ($null -ne $rp) { $rType = [string]$rp.Value }
+        $fac = "-"
+        $fp = $r.PSObject.Properties['Facilities']
+        if ($null -ne $fp -and $null -ne $fp.Value -and @($fp.Value).Count -gt 0) { $fac = (@($fp.Value) -join ", ") }
+        $rent = Get-RentPerHour $r
+        $on = $false
+        $op = $r.PSObject.Properties['Renting']
+        if ($null -ne $op) { $on = [bool]$op.Value }
+        if ($on) { $totalRent += $rent }
+        $item = New-Object System.Windows.Forms.ListViewItem($rType)
+        [void]$item.SubItems.Add($fac)
+        [void]$item.SubItems.Add(("Rp {0:N0}" -f $rent))
+        [void]$item.SubItems.Add($(if ($on) { "Disewa" } else { "Kosong" }))
+        [void]$item.SubItems.Add(("Rp {0:N0}" -f (Get-HouseValue $r)))
+        $item.Tag = $r.Id
+        if ($on) { $item.ForeColor = [System.Drawing.Color]::Green }
+        [void]$lvRentals.Items.Add($item)
+    }
+    $lvRentals.EndUpdate()
+    if ($selRid) { foreach ($it in $lvRentals.Items) { if ($it.Tag -eq $selRid) { $it.Selected = $true; break } } }
+    $lblRentInfo.Text = "Sewa masuk: Rp {0:N0}/jam" -f $totalRent
+    $btnRentToggle.Enabled = ($lvRentals.SelectedItems.Count -gt 0)
+    $btnFacilityAdd.Enabled = ($lvRentals.SelectedItems.Count -gt 0)
+}
+
 function Update-BuildUI {
     $lvBuilds.Width = [Math]::Max(400, [int]($panelBuild.ClientSize.Width * 0.9))
     if ($null -ne $Global:BuildEndTime) {
@@ -1681,6 +2009,7 @@ $btnBuildSell.Add_Click({
     $tax = $sellPrice - $net
     $Global:GameState.Player.Money += $net
     $Global:GameState.Houses = @(@(Get-Houses) | Where-Object { $_.Id -ne $id })
+    Add-HouseMarketListing $h $sellPrice
     Add-WorkStat 'HouseSold' 1
     Add-WorkStat 'HouseIncome' $net
     Update-BuildUI
@@ -2239,6 +2568,7 @@ $timer.Add_Tick({
         $Global:GameState.Player.Money += $rate * $buff
         $Global:GameState.Player.PlaytimeSec += 1
         Advance-Houses
+        Advance-Rentals 1.0
         
         $Global:SaveCounter++
         if ($Global:SaveCounter -ge 30) {
@@ -2252,6 +2582,7 @@ $timer.Add_Tick({
         if ($panelStat.Visible) { Update-WorkStatsUI }
         if ($panelContract.Visible) { Update-ContractsUI }
         if ($panelWorker.Visible) { Update-WorkerUI }
+        if ($panelMarket.Visible) { Update-MarketUI }
         Ensure-Contracts
         $Global:EngineCheckCounter++
         if ($Global:EngineCheckCounter -ge 15) { $Global:EngineCheckCounter = 0; Ensure-MarketEngine }
@@ -2268,6 +2599,8 @@ Show-WorkPanel $panelStat
 Update-WorkStatsUI
 Update-BuildUI
 Update-ContractsUI
+foreach ($f in (Get-FacilityDefs)) { [void]$cmbFacility.Items.Add($f.Name) }
+Update-MarketUI
 Update-WorkerUI
 $timer.Start()
 

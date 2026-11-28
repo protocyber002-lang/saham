@@ -118,4 +118,15 @@ $Global:Config = @{
     WorkerBaseCost      = 25000.0   # upah/harga rekrut pekerja pertama
     WorkerCostGrowth    = 1.35      # harga rekrut berikutnya = base x growth^jumlah
     WorkerXpPerLevel    = 10.0      # XP aktif kerja untuk naik 1 level
+
+    # --- PASAR RUMAH, SEWA & FASILITAS ---
+    RentYieldPctPerHour = 0.10       # sewa dasar per jam (% dari nilai rumah)
+    Facility_Carport_Cost    = 75000.0   # biaya pasang carport
+    Facility_Carport_RentPct = 10.0      # sewa naik +10%
+    Facility_Taman_Cost      = 150000.0
+    Facility_Taman_RentPct   = 15.0
+    Facility_Kolam_Cost      = 250000.0
+    Facility_Kolam_RentPct   = 25.0
+    Facility_Rooftop_Cost    = 400000.0
+    Facility_Rooftop_RentPct = 35.0
 }
