@@ -128,7 +128,8 @@ function Process-WebQueue {
         if ($mine.Count -eq 0) { return }
         Write-WebQueueLog "INFO" ("Antrian diterima: {0} order utk profil '{1}'" -f $mine.Count, $activeProfile)
 
-        if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState.Portfolio = @{} }
+        if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState['Portfolio'] = @{} }
+        Normalize-Portfolio
         if (-not $Global:GameState.Player.ContainsKey('Money')) { $Global:GameState.Player.Money = 0.0 }
         $stocks = Load-StockData
 
@@ -176,6 +177,28 @@ function Process-WebQueue {
     finally { if ($lockFs) { try { $lockFs.Close() } catch {} } }
 }
 
+function Normalize-Portfolio {
+    if ($null -eq $Global:GameState) { return }
+    if ($Global:GameState.Portfolio -is [System.Collections.IDictionary]) {
+        foreach ($k in @($Global:GameState.Portfolio.Keys)) {
+            if ($null -eq $Global:GameState.Portfolio[$k] -or -not ($Global:GameState.Portfolio[$k] -is [System.Collections.IDictionary])) {
+                $Global:GameState.Portfolio[$k] = @{ Shares = 0; AvgPrice = 0.0 }
+            }
+        }
+        return
+    }
+    $rebuilt = @{}
+    if ($Global:GameState.Portfolio) {
+        foreach ($e in @($Global:GameState.Portfolio)) {
+            try {
+                $t = [string]$e.Ticker
+                if ($t) { $rebuilt[$t] = @{ Shares = [int]$e.Shares; AvgPrice = [double]$e.AvgPrice } }
+            } catch { }
+        }
+    }
+    $Global:GameState.Portfolio = $rebuilt
+}
+
 function Start-Engine {
     param([string]$ProfileName = $null)
     try {
@@ -191,6 +214,8 @@ function Start-Engine {
     try { $Global:GameState = SaveSystem.Load
         if (-not $Global:GameState.ContainsKey('TransactionLog')) { $Global:GameState['TransactionLog'] = @() }
         if ($null -eq $Global:GameState.Flags) { $Global:GameState.Flags = @{} }
+        if (-not $Global:GameState.ContainsKey('Portfolio')) { $Global:GameState['Portfolio'] = @{} }
+        Normalize-Portfolio
         $Global:GameState.Flags['ShowStockMenu'] = $false
         $Global:GameState.Flags['ShowBotMenu'] = $false
     } catch {
