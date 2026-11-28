@@ -872,6 +872,7 @@ function Update-AllUI {
         $buffMult = 1.0
         $buffActive = $false
         $timeStr = ""
+        $stockSecLeft = 0
         
         if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'StockBuffUntil') {
             try {
@@ -879,23 +880,20 @@ function Update-AllUI {
                 if ([DateTime]::UtcNow -lt $until) {
                     $buffActive = $true
                     $buffMult = [double]$Global:GameState.Flags.StockBuffMult
-                    $secLeft = [int](($until - [DateTime]::UtcNow).TotalSeconds)
-                    if ($secLeft -lt 60) { $timeStr = "${secLeft}s" } else { $ts = [TimeSpan]::FromSeconds($secLeft); $timeStr = ("{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds) }
+                    $stockSecLeft = [int](($until - [DateTime]::UtcNow).TotalSeconds)
+                    if ($stockSecLeft -lt 60) { $timeStr = "${stockSecLeft}s" } else { $ts = [TimeSpan]::FromSeconds($stockSecLeft); $timeStr = ("{0}m {1:00}s" -f [int]$ts.TotalMinutes, $ts.Seconds) }
                 }
             } catch {}
         }
         
         $clickBuffMult = 1.0
-        $clickBuffActive = $false
-        $clickTimeStr = ""
+        $clickSecLeft = 0
         if ($Global:GameState.Flags.PSObject.Properties.Name -contains 'ClickBuffUntil') {
             try {
                 $untilC = [DateTime]::Parse($Global:GameState.Flags.ClickBuffUntil, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
                 if ([DateTime]::UtcNow -lt $untilC) {
-                    $clickBuffActive = $true
                     $clickBuffMult = [double]$Global:GameState.Flags.ClickBuffMult
-                    $secLeftC = [int](($untilC - [DateTime]::UtcNow).TotalSeconds)
-                    if ($secLeftC -lt 60) { $clickTimeStr = "${secLeftC}s" } else { $tsC = [TimeSpan]::FromSeconds($secLeftC); $clickTimeStr = ("{0}m {1:00}s" -f [int]$tsC.TotalMinutes, $tsC.Seconds) }
+                    $clickSecLeft = [int](($untilC - [DateTime]::UtcNow).TotalSeconds)
                 }
             } catch {}
         }
@@ -912,8 +910,11 @@ function Update-AllUI {
             $lblBuffInfo.Text = "Stock Buff: Tidak Ada"
             $lblBuffStock.Text = "Stock Buff: -"
         }
-        if ($clickBuffActive) {
-            $lblClickBuffInfo.Text = "Click Buff: " + $clickBuffMult + "x (" + $clickTimeStr + ")"
+        $effClickMult = $clickBuffMult * $buffMult
+        $effClickLeft = [Math]::Max($clickSecLeft, $stockSecLeft)
+        if ($effClickMult -gt 1.0 -and $effClickLeft -gt 0) {
+            if ($effClickLeft -lt 60) { $effTime = "${effClickLeft}s" } else { $tsE = [TimeSpan]::FromSeconds($effClickLeft); $effTime = ("{0}m {1:00}s" -f [int]$tsE.TotalMinutes, $tsE.Seconds) }
+            $lblClickBuffInfo.Text = "Click Buff: " + $effClickMult + "x (" + $effTime + ")"
             $lblClickBuffInfo.ForeColor = [System.Drawing.Color]::Orange
         } else {
             $lblClickBuffInfo.Text = "Click Buff: Tidak Ada"
