@@ -101,10 +101,10 @@ function Get-LockOwnerMessage($name, $lockPath) {
     return ("Profil '{0}' sedang berjalan di {1}. Tutup dulu, lalu coba lagi (satu profil hanya bisa dibuka di satu tempat: GUI atau TUI)." -f $name, $owner)
 }
 
-function Test-ProcessAlive($pid) {
-    if (-not $pid) { return $false }
+function Test-ProcessAlive($procId) {
+    if (-not $procId) { return $false }
     try {
-        $p = Get-Process -Id $pid -ErrorAction Stop
+        $p = Get-Process -Id $procId -ErrorAction Stop
         return ($null -ne $p)
     } catch { return $false }
 }
@@ -115,15 +115,15 @@ function Get-ProfileLockInfo($name) {
     try {
         $raw = [System.IO.File]::ReadAllText($lp, [System.Text.Encoding]::UTF8).Trim()
         $parts = $raw -split '\|'
-        $pid = 0
-        [int]::TryParse($parts[0], [ref]$pid) | Out-Null
+        $lockPid = 0
+        [int]::TryParse($parts[0], [ref]$lockPid) | Out-Null
         $host_ = ''
         if ($parts.Count -gt 1) { $host_ = $parts[1] }
-        if (-not (Test-ProcessAlive $pid)) {
+        if (-not (Test-ProcessAlive $lockPid)) {
             Remove-Item $lp -Force -ErrorAction SilentlyContinue
             return $null
         }
-        return [pscustomobject]@{ Pid = $pid; Host = $host_; Path = $lp }
+        return [pscustomobject]@{ Pid = $lockPid; Host = $host_; Path = $lp }
     } catch {
         Remove-Item $lp -Force -ErrorAction SilentlyContinue
         return $null
